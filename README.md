@@ -1,9 +1,9 @@
-# Prow
+# Prow CTI
 
 **Open-source threat intelligence, without the asterisks.**
 
-Prow is a STIX 2.1–native cyber threat intelligence platform built around
-three commitments:
+Prow CTI is a STIX 2.1–native cyber threat intelligence platform built
+around three commitments:
 
 - **Apache 2.0, all of it.** Single-sign-on, audit logs, role-based access
   control, automation, multi-tenancy — in the project, not behind a
@@ -13,18 +13,21 @@ three commitments:
 - **Connectors are the product.** Writing a feed connector should be a
   weekend, not an onboarding programme.
 
+Prow CTI is the first product from [Prow](https://github.com/prow-cti),
+a company building open-source security infrastructure.
+
 > **Status: pre-alpha.** The repository scaffold is in place. No platform
 > code yet. The architecture is drafted, the connector SDK is specified,
 > and the first walking-skeleton connector (CISA KEV) is what we're
 > building against next. If you want to follow along, watch the repo —
-> the v0.1 milestone is where prow becomes something you can run.
+> the v0.1 milestone is where Prow CTI becomes something you can run.
 
 ---
 
 ## Why another threat intel platform
 
 The two open platforms most teams actually consider are MISP and OpenCTI.
-Both are good projects. Prow exists because of the gaps between them.
+Both are good projects. Prow CTI exists because of the gaps between them.
 
 **MISP** is fully open-source and battle-tested, with the strongest feed
 ecosystem in the space. It's also PHP, event-centric rather than
@@ -33,14 +36,14 @@ modern data model and a knowledge-graph view of their intel often look
 elsewhere.
 
 **OpenCTI** is the modern, STIX-native, graph-centric platform — and it's
-the one prow positions against most directly. OpenCTI is open-core: SSO
-(OIDC/SAML/LDAP), audit logs, automation playbooks, granular RBAC, and
-multi-tenancy live in the Enterprise Edition. For organisations of more
-than a handful of people, SSO is a baseline security control, not a
+the one Prow CTI positions against most directly. OpenCTI is open-core:
+SSO (OIDC/SAML/LDAP), audit logs, automation playbooks, granular RBAC,
+and multi-tenancy live in the Enterprise Edition. For organisations of
+more than a handful of people, SSO is a baseline security control, not a
 premium feature. Charging for it pushes smaller teams toward less-secure
-deployments. That's the gap prow is built into.
+deployments. That's the gap Prow CTI is built into.
 
-Prow's pitch, in one line: **MISP's open-source ethos, OpenCTI's graph
+The pitch, in one line: **MISP's open-source ethos, OpenCTI's graph
 model, a lighter footprint, and a connector developer experience that
 respects your time.**
 
@@ -65,13 +68,13 @@ doesn't change.
 
 **REST plus OpenAPI as the primary API.** GraphQL is a fine fit for some
 problems; it's also a learning-curve tax for everyone whose first
-interaction with a CTI platform is `curl`. Prow optimises for the curl
-case. A GraphQL adapter can come later for teams that want it.
+interaction with a CTI platform is `curl`. Prow CTI optimises for the
+curl case. A GraphQL adapter can come later for teams that want it.
 
 **Python end to end.** The CTI ecosystem and its connector authors
 overwhelmingly work in Python. Same language for the platform and for
-contributors lowers the bar to the most important contribution prow can
-receive: a new connector.
+contributors lowers the bar to the most important contribution Prow CTI
+can receive: a new connector.
 
 ## What's planned
 
@@ -79,7 +82,7 @@ The roadmap is broken into four milestones, each independently useful:
 
 **v0.1 — Walking skeleton.** Backend, Postgres schema, STIX
 validate/store/retrieve, the CISA KEV connector, a minimal UI, local
-auth, single Docker image. Demo: `docker run prow/prow:0.1` and
+auth, single Docker image. Demo: `docker run prow/prow-cti:0.1` and
 import KEV on first boot.
 
 **v0.2 — Connector library and UX.** Connector SDK on PyPI, hot-reload
@@ -100,17 +103,17 @@ A detailed roadmap will land in the repository alongside v0.1.
 
 ## Sustainability
 
-Apache 2.0 across the codebase means prow has to make money some other
+Apache 2.0 across the codebase means Prow has to make money some other
 way to last. The plan, stated up front so it's holdable to:
 
-- **Hosted SaaS** — same codebase, operated by us, for teams that don't
-  want to run their own.
+- **Hosted Prow CTI** — same codebase, operated by us, for teams that
+  don't want to run their own.
 - **Support contracts** for organisations that need a number to call.
 - **Custom development** for orgs with specific connector or workflow
   needs.
 - **Training**.
 
-What prow will not do: gate features behind a commercial tier. SSO,
+What Prow will not do: gate features behind a commercial tier. SSO,
 audit logs, RBAC, multi-tenancy, and automation stay in the project.
 
 ## Get involved
@@ -125,7 +128,7 @@ now, in roughly increasing order of effort:
   what real users want first.
 - **Open an issue** if a design choice looks wrong, even before there's
   code to argue about. Early architectural feedback is the
-  highest-leverage contribution prow can receive right now.
+  highest-leverage contribution Prow CTI can receive right now.
 - **Write a connector** once the SDK ships. If a weekend project against
   the SDK turns out to be harder than that, treat it as a bug in the SDK
   and tell us.
@@ -140,6 +143,8 @@ A `CONTRIBUTING.md` with the full process will land alongside v0.1.
 
 | | |
 |---|---|
+| Product | Prow CTI |
 | Version | 0.0.0 (scaffold) |
 | Python | 3.12+ |
 | License | Apache-2.0 |
+| Maintainer | [Prow](https://github.com/prow-cti) |
