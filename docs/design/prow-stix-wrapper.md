@@ -7,6 +7,32 @@
 
 ---
 
+## Amendments
+
+**2026-05-07** — Pre-implementation maintainer decisions on Open Questions:
+
+- `StixObject` discriminated union is **internal**. Public API exposes
+  specific types; the union is used inside the wrapper for routing
+  cases (the persister legitimately handles "any STIX object").
+- TLP and well-known marking IDs live in `prow.stix.markings` as a
+  constants module, not as string literals. TLP 2.0 constants only at
+  v0.1; TLP 1.0 deferred until a connector needs legacy ingest.
+- Custom STIX extensions are preserved as `extensions: dict[str, Any]`
+  on round-trip. Typed models for specific tools (OpenCTI, MISP) only
+  when a real connector requires reading specific fields.
+
+**2026-05-07** — SCO deterministic ID computation in v0.1 delegates to
+`stix2`'s utility via `_stix2_adapter.compute_sco_id`. Native prow-side
+implementation deferred until a fork is required or until a contract
+test against OASIS test vectors is in place.
+
+**2026-05-07** — Schema vendoring uses upstream OASIS layout
+(`common/`, `observables/`, `sdos/`, `sros/`) rather than the
+design note's speculative layout. Schemas are referenced by STIX type
+in code, not by filesystem path. See `_schemas/README.md` for details.
+
+---
+
 ## Goals
 
 - Provide **prow-owned STIX boundary types** (Pydantic v2) so **no package outside `prow.stix` imports `stix2` directly** — import-linter and package discipline enforce this; the adapter file is the sole bridge.
