@@ -1,0 +1,53 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "prow"
+version = "0.0.0"
+description = "Open-source STIX 2.1-native cyber threat intelligence platform"
+readme = "README.md"
+license = "Apache-2.0"
+requires-python = ">=3.12"
+authors = [{ name = "Prow Contributors" }]
+dependencies = [
+    "fastapi",
+    "uvicorn[standard]",
+    "pydantic>=2",
+    "pydantic-settings",
+    "sqlalchemy>=2",
+    "asyncpg",
+    "alembic",
+    "httpx",
+    "structlog",
+    "typer",
+    "stix2",
+    "jsonschema",
+    "opentelemetry-api",
+    "opentelemetry-sdk",
+]
+
+[project.optional-dependencies]
+dev = [
+    "ruff",
+    "mypy",
+    "pytest",
+    "pytest-asyncio",
+    "pytest-cov",
+    "import-linter",
+    "types-jsonschema",
+]
+opensearch = []
+nats = []
+
+[project.scripts]
+prow = "prow.cli:app"
+
+[project.entry-points."prow.connectors"]
+
+[tool.hatch.build.targets.sdist]
+include = ["src/prow", "README.md", "LICENSE", "NOTICE"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
