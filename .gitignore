@@ -32,6 +32,3 @@ Thumbs.db
 # Environment (never commit secrets)
 .env
 .env.local
-
-# Documentation directory (root)
-/docs/
