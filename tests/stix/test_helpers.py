@@ -170,3 +170,35 @@ def test_file_helper_falls_back_to_name_only_id() -> None:
 def test_file_helper_requires_name_or_hashes() -> None:
     with pytest.raises(ValueError):
         file_observable()
+
+
+def test_file_observable_with_extensions_produces_distinct_id() -> None:
+    """File SCOs with different extensions must have different IDs."""
+    base = file_observable(name="test.exe", hashes={"SHA-256": "a" * 64})
+    with_ext = file_observable(
+        name="test.exe",
+        hashes={"SHA-256": "a" * 64},
+        extensions={
+            "windows-pebinary-ext": {
+                "pe_type": "exe",
+                "machine_hex": "014c",
+            }
+        },
+    )
+    assert base.id != with_ext.id, (
+        "File SCO IDs must differ when extensions differ — "
+        "extensions are spec-required contributing properties."
+    )
+
+
+def test_file_observable_extensions_round_trip() -> None:
+    """Extensions on File SCOs survive serialisation."""
+    f = file_observable(
+        name="malware.dll",
+        extensions={
+            "archive-ext": {"contains_refs": ["file--00000000-0000-0000-0000-000000000000"]}
+        },
+    )
+    serialised = f.model_dump(mode="json")
+    assert "extensions" in serialised
+    assert "archive-ext" in serialised["extensions"]

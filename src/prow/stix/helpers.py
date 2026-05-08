@@ -266,6 +266,7 @@ def file_observable(
     hashes: dict[str, str] | None = None,
     name: str | None = None,
     size: int | None = None,
+    extensions: dict[str, dict[str, Any]] | None = None,
 ) -> File:
     """Build a STIX File SCO with a spec-correct deterministic ID.
 
@@ -276,13 +277,24 @@ def file_observable(
     full ``hashes`` dict still rides on the resulting object. If no
     hashes are provided, ``name`` alone seeds the ID — which yields
     a stable but weak identifier; the caller is expected to know
-    that.
+    that. When ``extensions`` is provided, it participates in the
+    ID computation as well, so two files identical in name + hash
+    but distinguishable by extension data (e.g. a PE binary versus
+    an archive-ext payload) get distinct deterministic IDs.
 
     Args:
         hashes: Optional mapping of ``{algo: hex}``. At minimum one
             of ``hashes`` or ``name`` must be supplied.
         name: Optional file name.
         size: Optional file size in bytes.
+        extensions: Optional mapping of STIX File extensions, keyed
+            by extension name (``"archive-ext"``,
+            ``"windows-pebinary-ext"``, ``"pdf-ext"``, etc.). Values
+            are the extension's property dicts. Passed through to
+            the :class:`File` model unchanged and folded into the
+            ID-contributing properties so the resulting ID is
+            stable across runs and distinct from a same-name +
+            same-hash file without these extensions.
 
     Returns:
         A constructed :class:`File`.
@@ -307,10 +319,13 @@ def file_observable(
             contributing["hashes"] = {chosen: hashes[chosen]}
     if name:
         contributing["name"] = name
+    if extensions:
+        contributing["extensions"] = extensions
 
     return File(
         id=compute_sco_id("file", contributing),
         hashes=hashes,
         name=name,
         size=size,
+        extensions=extensions or {},
     )
