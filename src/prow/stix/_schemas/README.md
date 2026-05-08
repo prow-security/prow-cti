@@ -115,3 +115,11 @@ manual.
 | `2.1/sdos/` | STIX Domain Objects (`indicator`, `malware`, `threat-actor`, etc.). |
 | `2.1/observables/` | STIX Cyber-observable Objects (`ipv4-addr`, `domain-name`, `file`, etc.). |
 | `2.1/sros/` | STIX Relationship Objects (`relationship`, `sighting`). |
+
+## Where the OASIS example bundles live
+
+This directory contains *normative schemas only*. The OASIS example
+bundles (which the schemas validate against) ship with the upstream
+repo under `examples/` and are vendored separately under
+`tests/stix/fixtures/oasis_examples/` for the conformance test suite.
+Refresh both at the same commit when re-vendoring.
