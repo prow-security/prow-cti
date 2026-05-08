@@ -31,6 +31,23 @@ test against OASIS test vectors is in place.
 design note's speculative layout. Schemas are referenced by STIX type
 in code, not by filesystem path. See `_schemas/README.md` for details.
 
+**2026-05-07** — Pass B follow-ups:
+
+- `file_observable` helper now accepts an `extensions` parameter.
+  ID computation correctly includes extensions in contributing
+  properties via the adapter's delegation to `stix2.base`. Closes
+  the v0.1 deferral noted in Modelling workarounds.
+
+- Upstream `py.typed` contribution tracked in
+  `docs/upstream-contribs.md`. The two `# type: ignore[import-untyped]`
+  comments in `_stix2_adapter.py` will be removed when upstream
+  ships the marker.
+
+- Full RFC 8785 JCS canonicalisation is available via
+  `stix2.base.canonicalize`; the design note's pre-authorised
+  fallback (`json.dumps` with sort_keys) was not needed and is
+  not used in the implementation.
+
 ---
 
 ## Goals

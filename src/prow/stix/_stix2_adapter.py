@@ -37,11 +37,7 @@ from __future__ import annotations
 import uuid
 from typing import Any
 
-# `stix2` 3.0.2 does not ship a `py.typed` marker or stubs, so mypy
-# cannot infer types across this boundary. We type-ignore the imports
-# explicitly (rather than disabling import discovery globally) so the
-# missing-stubs status is visible at the one place it matters and does
-# not silently shadow real type errors elsewhere.
+# stix2 ships no py.typed marker (PEP 561). See docs/upstream-contribs.md.
 import stix2  # type: ignore[import-untyped]
 import stix2.base  # type: ignore[import-untyped]
 
