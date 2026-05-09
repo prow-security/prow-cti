@@ -23,9 +23,15 @@ from collections.abc import Awaitable, Callable
 from typing import Any
 
 import structlog
+from opentelemetry.metrics import Meter
 
-from prow.connector.entry_point_resolve import validate_connector_instance_config
+from prow.connector.entry_point_resolve import (
+    secret_field_paths_for_entry_point,
+    validate_connector_instance_config,
+)
 from prow.connector.instance import ConnectorInstance
+from prow.connector.log_forwarder import LogForwarder
+from prow.connector.metric_forwarder import MetricForwarder
 from prow.connector.protocol.messages import EmitAckPayload, HealthStatus
 from prow.connector.restart_policy import RestartPolicy
 from prow.connector.supervisor_state import ConnectorState
@@ -48,11 +54,13 @@ class Supervisor:
         state_set_handler: StateSetHandler,
         default_restart_policy: RestartPolicy | None = None,
         health_probe_interval_seconds: float | None = 30.0,
+        meter: Meter | None = None,
     ) -> None:
         self._runtime_version = runtime_version
         self._emit_handler = emit_handler
         self._state_get_handler = state_get_handler
         self._state_set_handler = state_set_handler
+        self._meter = meter
         self._default_restart_policy = default_restart_policy or RestartPolicy()
         self._health_probe_interval_seconds = health_probe_interval_seconds
 
@@ -71,6 +79,9 @@ class Supervisor:
     ) -> ConnectorInstance:
         validate_connector_instance_config(entry_point_name, config)
         policy = restart_policy or self._default_restart_policy
+        secret_paths = secret_field_paths_for_entry_point(entry_point_name)
+        log_forwarder = LogForwarder(instance_id, entry_point_name, secret_paths)
+        metric_forwarder = MetricForwarder(instance_id, entry_point_name, self._meter)
         inst = ConnectorInstance(
             instance_id,
             entry_point_name,
@@ -80,6 +91,8 @@ class Supervisor:
             self._state_get_handler,
             self._state_set_handler,
             policy,
+            log_forwarder=log_forwarder,
+            metric_forwarder=metric_forwarder,
             subprocess_extra_environ=subprocess_extra_environ,
         )
         self._instances[instance_id] = inst

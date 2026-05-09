@@ -24,6 +24,8 @@ from typing import Any
 
 import structlog
 
+from prow.connector.log_forwarder import LogForwarder
+from prow.connector.metric_forwarder import MetricForwarder
 from prow.connector.process import ConnectorProcess, ProcessExitReason
 from prow.connector.protocol.messages import EmitAckPayload, HealthAckPayload, HealthStatus
 from prow.connector.restart_policy import (
@@ -63,6 +65,8 @@ class ConnectorInstance:
         state_set_handler: StateSetHandler,
         restart_policy: RestartPolicy,
         *,
+        log_forwarder: LogForwarder | None = None,
+        metric_forwarder: MetricForwarder | None = None,
         subprocess_extra_environ: dict[str, str] | None = None,
         clock: ClockFn | None = None,
         sleep_fn: SleepFn | None = None,
@@ -75,6 +79,8 @@ class ConnectorInstance:
         self._state_get_handler = state_get_handler
         self._state_set_handler = state_set_handler
         self._restart_policy = restart_policy
+        self._log_forwarder = log_forwarder
+        self._metric_forwarder = metric_forwarder
         self._subprocess_extra_environ = dict(subprocess_extra_environ or ())
         self._clock = clock or utc_now
         self._sleep_fn: SleepFn = sleep_fn if sleep_fn is not None else asyncio.sleep
@@ -131,6 +137,10 @@ class ConnectorInstance:
             self._wrap_emit_handler(),
             self._state_get_handler,
             self._state_set_handler,
+            log_handler=self._log_forwarder.forward if self._log_forwarder is not None else None,
+            metric_handler=self._metric_forwarder.forward
+            if self._metric_forwarder is not None
+            else None,
             extra_environ=self._subprocess_extra_environ,
         )
 

@@ -50,6 +50,8 @@ logger = structlog.get_logger(__name__)
 EmitHandler = Callable[[str, dict[str, Any]], Awaitable[EmitAckPayload]]
 StateGetHandler = Callable[[str, str], Awaitable[Any | None]]
 StateSetHandler = Callable[[str, str, Any], Awaitable[None]]
+LogHandler = Callable[[LogPayload], None]
+MetricHandler = Callable[[MetricPayload], None]
 
 
 class ConnectorProcessExited(Exception):  # noqa: N818
@@ -71,6 +73,8 @@ class ConnectorRuntimeTransport:
         emit_handler: EmitHandler,
         state_get_handler: StateGetHandler,
         state_set_handler: StateSetHandler,
+        log_handler: LogHandler | None = None,
+        metric_handler: MetricHandler | None = None,
     ) -> None:
         self._connector_instance_id = connector_instance_id
         self._reader = reader
@@ -79,6 +83,8 @@ class ConnectorRuntimeTransport:
         self._emit_handler = emit_handler
         self._state_get_handler = state_get_handler
         self._state_set_handler = state_set_handler
+        self._log_handler = log_handler
+        self._metric_handler = metric_handler
 
         self._pending_runtime: dict[str, asyncio.Future[Envelope]] = {}
         self._pending_lock = asyncio.Lock()
@@ -286,23 +292,13 @@ class ConnectorRuntimeTransport:
 
     async def _handle_log(self, env: Envelope) -> None:
         payload = LogPayload.model_validate(env.payload)
-        bound = logger.bind(
-            connector_instance_id=self._connector_instance_id,
-            **payload.fields,
-        )
-        level_fn = getattr(bound, payload.level.value, bound.info)
-        level_fn(payload.message)
+        if self._log_handler is not None:
+            self._log_handler(payload)
 
     async def _handle_metric(self, env: Envelope) -> None:
         payload = MetricPayload.model_validate(env.payload)
-        logger.debug(
-            "connector.runtime.metric",
-            connector_instance_id=self._connector_instance_id,
-            name=payload.name,
-            value=payload.value,
-            unit=payload.unit,
-            tags=payload.tags,
-        )
+        if self._metric_handler is not None:
+            self._metric_handler(payload)
 
     def _validate_ack_envelope(self, env: Envelope, expected_kind: str) -> None:
         if env.error is not None:

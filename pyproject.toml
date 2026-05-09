@@ -50,6 +50,10 @@ crash_test = "prow.connector.testing.crash_pkg.connector:CrashConnector"
 minimal_test = "prow.connector.testing.minimal_pkg.connector:MinimalConnector"
 crash_setup_test = "prow.connector.testing.crash_setup_pkg.connector:CrashSetupConnector"
 slow_health_test = "prow.connector.testing.slow_health_pkg.connector:SlowHealthConnector"
+verbose_logger_test = "prow.connector.testing.verbose_logger_pkg.connector:VerboseLoggerConnector"
+metric_emitter_test = "prow.connector.testing.metric_emitter_pkg.connector:MetricEmitterConnector"
+stderr_chatty_test = "prow.connector.testing.stderr_chatty_pkg.connector:StderrChattyConnector"
+secret_logger_test = "prow.connector.testing.secret_logger_pkg.connector:SecretLoggerConnector"
 
 [tool.hatch.build.targets.sdist]
 include = ["src/prow", "README.md", "LICENSE", "NOTICE"]

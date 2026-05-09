@@ -19,6 +19,7 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import sys
+from collections import deque
 from collections.abc import Awaitable, Callable
 from enum import StrEnum
 from typing import Any
@@ -27,7 +28,7 @@ import structlog
 
 from prow.connector.pipe_stdio import connector_subprocess_environ
 from prow.connector.protocol.codec import ProtocolError
-from prow.connector.protocol.messages import EmitAckPayload
+from prow.connector.protocol.messages import EmitAckPayload, LogLevel, LogPayload, MetricPayload
 from prow.connector.protocol.negotiation import (
     UnsupportedVersionError,
     perform_hello_runtime,
@@ -39,6 +40,34 @@ logger = structlog.get_logger(__name__)
 EmitHandler = Callable[[str, dict[str, Any]], Awaitable[EmitAckPayload]]
 StateGetHandler = Callable[[str, str], Awaitable[Any | None]]
 StateSetHandler = Callable[[str, str, Any], Awaitable[None]]
+LogHandler = Callable[[LogPayload], None]
+MetricHandler = Callable[[MetricPayload], None]
+
+
+class _StderrRingBuffer:
+    """Recent stderr lines bounded by line count and approximate UTF-8 byte size."""
+
+    def __init__(self, max_lines: int, max_bytes: int) -> None:
+        self._lines: deque[str] = deque()
+        self._max_lines = max_lines
+        self._max_bytes = max_bytes
+        self._approx_bytes = 0
+
+    def append(self, line: str) -> None:
+        raw = line.encode("utf-8")
+        self._lines.append(line)
+        self._approx_bytes += len(raw) + 1
+        self._trim()
+
+    def _trim(self) -> None:
+        while self._lines and (
+            len(self._lines) > self._max_lines or self._approx_bytes > self._max_bytes
+        ):
+            old = self._lines.popleft()
+            self._approx_bytes -= len(old.encode("utf-8")) + 1
+
+    def snapshot(self) -> list[str]:
+        return list(self._lines)
 
 
 class ConnectorProcessState(StrEnum):
@@ -74,6 +103,11 @@ class ConnectorProcess:
         state_get_handler: StateGetHandler,
         state_set_handler: StateSetHandler,
         *,
+        log_handler: LogHandler | None = None,
+        metric_handler: MetricHandler | None = None,
+        stderr_log_level: LogLevel = LogLevel.ERROR,
+        stderr_max_lines: int = 200,
+        stderr_max_bytes: int = 10 * 1024,
         extra_environ: dict[str, str] | None = None,
     ) -> None:
         self._connector_instance_id = connector_instance_id
@@ -83,6 +117,10 @@ class ConnectorProcess:
         self._emit_handler = emit_handler
         self._state_get_handler = state_get_handler
         self._state_set_handler = state_set_handler
+        self._log_handler = log_handler
+        self._metric_handler = metric_handler
+        self._stderr_log_level = stderr_log_level
+        self._stderr_ring = _StderrRingBuffer(stderr_max_lines, stderr_max_bytes)
         self._extra_environ = dict(extra_environ or ())
 
         self._proc: asyncio.subprocess.Process | None = None
@@ -93,6 +131,12 @@ class ConnectorProcess:
         self._timeout_kill = False
         self._spawn_failed = False
         self._hello_failed = False
+
+    @property
+    def captured_stderr(self) -> list[str]:
+        """Returns the most recent stderr lines (up to ring buffer capacity)."""
+
+        return self._stderr_ring.snapshot()
 
     @property
     def state(self) -> ConnectorProcessState:
@@ -180,6 +224,8 @@ class ConnectorProcess:
             self._emit_handler,
             self._state_get_handler,
             self._state_set_handler,
+            log_handler=self._log_handler,
+            metric_handler=self._metric_handler,
         )
         await self._transport.start()
         self._state = ConnectorProcessState.RUNNING
@@ -188,13 +234,15 @@ class ConnectorProcess:
         bind = structlog.contextvars.bind_contextvars(
             connector_instance_id=self._connector_instance_id,
         )
+        log_fn = getattr(logger, self._stderr_log_level.value, logger.error)
         try:
             while True:
                 line = await stream.readline()
                 if not line:
                     return
                 text = line.decode("utf-8", errors="replace").rstrip()
-                logger.error("connector.subprocess.stderr", message=text)
+                self._stderr_ring.append(text)
+                log_fn("connector.subprocess.stderr", message=text)
         finally:
             structlog.contextvars.reset_contextvars(**bind)
 
