@@ -24,8 +24,9 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import os
 from datetime import UTC, datetime
-from typing import Any
+from typing import Any, ClassVar
 from uuid import uuid4
 
 import structlog
@@ -77,6 +78,9 @@ _LOG_METHOD = {
 
 class StdioTransport:
     """Connector-side JSONL transport over paired asyncio streams."""
+
+    #: Integration-test hook for runtime health probes (internal; not for production use).
+    _health_probe_round: ClassVar[dict[str, int]] = {}
 
     def __init__(
         self,
@@ -218,6 +222,16 @@ class StdioTransport:
             await self._forward_observability_from_peer(env)
 
     async def _reply_health_probe(self, env: Envelope) -> None:
+        status = HealthStatus.HEALTHY
+        mode = os.environ.get("PROW_CONNECTOR_TEST_HEALTH_MODE")
+        if mode == "unhealthy":
+            status = HealthStatus.UNHEALTHY
+        elif mode == "slow_then_ok":
+            rnd = StdioTransport._health_probe_round.get(self._connector_instance_id, 0)
+            StdioTransport._health_probe_round[self._connector_instance_id] = rnd + 1
+            if rnd == 0:
+                await asyncio.sleep(6.0)
+
         await write_message(
             self._writer,
             Envelope(
@@ -225,7 +239,7 @@ class StdioTransport:
                 id=self._new_message_id(),
                 kind="health-ack",
                 payload=HealthAckPayload(
-                    status=HealthStatus.HEALTHY,
+                    status=status,
                     details={},
                 ).model_dump(),
                 id_ref=env.id,
