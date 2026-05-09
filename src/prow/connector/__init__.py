@@ -26,8 +26,12 @@ from typing import TYPE_CHECKING, Any
 if TYPE_CHECKING:
     from prow.connector.base import ConnectorBase
     from prow.connector.context import ConnectorContext, EmitResult
+    from prow.connector.instance import ConnectorInstance
     from prow.connector.process import ConnectorProcess, ConnectorProcessState, ProcessExitReason
+    from prow.connector.restart_policy import RestartDecision, RestartPolicy
     from prow.connector.runtime_transport import ConnectorProcessExited, ConnectorRuntimeTransport
+    from prow.connector.supervisor import Supervisor
+    from prow.connector.supervisor_state import ConnectorState, InvalidStateTransitionError
     from prow.connector.transport import ConnectorTransport
     from prow.connector.transport_inprocess import InProcessTransport
     from prow.connector.transport_stdio import StdioTransport, TooManyInFlightError
@@ -84,6 +88,30 @@ def __getattr__(name: str) -> Any:
         from prow.connector.transport_stdio import TooManyInFlightError
 
         return TooManyInFlightError
+    if name == "Supervisor":
+        from prow.connector.supervisor import Supervisor
+
+        return Supervisor
+    if name == "ConnectorInstance":
+        from prow.connector.instance import ConnectorInstance
+
+        return ConnectorInstance
+    if name == "ConnectorState":
+        from prow.connector.supervisor_state import ConnectorState
+
+        return ConnectorState
+    if name == "InvalidStateTransitionError":
+        from prow.connector.supervisor_state import InvalidStateTransitionError
+
+        return InvalidStateTransitionError
+    if name == "RestartPolicy":
+        from prow.connector.restart_policy import RestartPolicy
+
+        return RestartPolicy
+    if name == "RestartDecision":
+        from prow.connector.restart_policy import RestartDecision
+
+        return RestartDecision
     msg = f"module {__name__!r} has no attribute {name!r}"
     raise AttributeError(msg)
 
@@ -91,14 +119,20 @@ def __getattr__(name: str) -> Any:
 __all__ = [
     "ConnectorBase",
     "ConnectorContext",
+    "ConnectorInstance",
     "ConnectorProcess",
     "ConnectorProcessExited",
     "ConnectorProcessState",
     "ConnectorRuntimeTransport",
+    "ConnectorState",
     "ConnectorTransport",
     "EmitResult",
     "InProcessTransport",
+    "InvalidStateTransitionError",
     "ProcessExitReason",
+    "RestartDecision",
+    "RestartPolicy",
     "StdioTransport",
+    "Supervisor",
     "TooManyInFlightError",
 ]

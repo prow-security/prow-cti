@@ -17,13 +17,10 @@
 from __future__ import annotations
 
 import asyncio
-import json
 import logging
 import os
 import sys
-from importlib import import_module
-from importlib.metadata import EntryPoint, entry_points
-from pathlib import Path
+from importlib.metadata import EntryPoint
 from typing import Any
 
 import jsonschema
@@ -31,32 +28,14 @@ import structlog
 from jsonschema import ValidationError as JsonSchemaValidationError
 
 from prow.connector.base import ConnectorBase
+from prow.connector.entry_point_resolve import (
+    load_manifest_config_schema,
+    resolve_connector_entry_point,
+)
 from prow.connector.pipe_stdio import connector_subprocess_exit, open_connector_stdio_streams
 from prow.connector.protocol.codec import ProtocolError
 from prow.connector.protocol.messages import LogLevel
 from prow.connector.protocol.negotiation import DEFAULT_SUPPORTED_VERSIONS, perform_hello_connector
-
-# Bundled under ``prow.connector.testing`` for automated tests; also listed in
-# ``pyproject.toml`` so ``pip install`` registers them. When the package is run
-# from a source checkout without installed metadata, fall back to this table.
-_BUNDLED_TEST_ENTRY_POINTS: tuple[tuple[str, str], ...] = (
-    ("lifecycle_test", "prow.connector.testing.lifecycle_pkg.connector:LifecycleConnector"),
-    ("hang_test", "prow.connector.testing.hang_pkg.connector:HangConnector"),
-    ("crash_test", "prow.connector.testing.crash_pkg.connector:CrashConnector"),
-    ("minimal_test", "prow.connector.testing.minimal_pkg.connector:MinimalConnector"),
-)
-
-
-def _resolve_connector_entry_point(entry_name: str) -> EntryPoint | None:
-    """Resolve an entry point, preferring bundled fallbacks (fast, no metadata scan)."""
-
-    for name, target in _BUNDLED_TEST_ENTRY_POINTS:
-        if name == entry_name:
-            return EntryPoint(name=name, value=target, group="prow.connectors")
-    for ep in entry_points(group="prow.connectors"):
-        if ep.name == entry_name:
-            return ep
-    return None
 
 
 def _configure_stderr_logging(instance_id: str) -> None:
@@ -97,27 +76,6 @@ def _runtime_connector_version() -> str:
         return "0.0.0"
 
 
-def _load_manifest_schema(ep: EntryPoint) -> dict[str, Any]:
-    """Load ``manifest.json`` adjacent to the connector module (Pass C1 JSON bundle)."""
-
-    module = import_module(ep.module)
-    if module.__file__ is None:
-        raise FileNotFoundError("Connector module has no __file__ path.")
-    root = Path(module.__file__).resolve().parent
-    manifest_path = root / "manifest.json"
-    if not manifest_path.is_file():
-        raise FileNotFoundError(
-            f"manifest.json not found next to connector module ({manifest_path}).",
-        )
-    data = json.loads(manifest_path.read_text(encoding="utf-8"))
-    raw_schema = data.get("config_schema")
-    if raw_schema is None:
-        raise ValueError("manifest.json must contain a config_schema object.")
-    if not isinstance(raw_schema, dict):
-        raise ValueError("manifest.json config_schema must be a JSON object.")
-    return raw_schema
-
-
 def _validate_config(schema: dict[str, Any], config: dict[str, Any]) -> None:
     jsonschema.validate(instance=config, schema=schema)
 
@@ -149,7 +107,7 @@ async def _async_main() -> None:
     # Attach protocol streams before importing STIX (context/types pull validators that log).
     reader, writer = await open_connector_stdio_streams()
 
-    ep_named = _resolve_connector_entry_point(entry_name)
+    ep_named = resolve_connector_entry_point(entry_name)
     if ep_named is None:
         sys.stderr.write(f"Unknown connector entry point {entry_name!r}.\n")
         connector_subprocess_exit(2)
@@ -170,7 +128,7 @@ async def _async_main() -> None:
     from prow.connector.transport_stdio import StdioTransport
 
     try:
-        schema = _load_manifest_schema(ep_named)
+        schema = load_manifest_config_schema(ep_named)
         _validate_config(schema, raw_config)
     except (FileNotFoundError, ValueError, JsonSchemaValidationError) as exc:
         sys.stderr.write(f"Config validation failed: {exc}\n")

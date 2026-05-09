@@ -48,6 +48,8 @@ lifecycle_test = "prow.connector.testing.lifecycle_pkg.connector:LifecycleConnec
 hang_test = "prow.connector.testing.hang_pkg.connector:HangConnector"
 crash_test = "prow.connector.testing.crash_pkg.connector:CrashConnector"
 minimal_test = "prow.connector.testing.minimal_pkg.connector:MinimalConnector"
+crash_setup_test = "prow.connector.testing.crash_setup_pkg.connector:CrashSetupConnector"
+slow_health_test = "prow.connector.testing.slow_health_pkg.connector:SlowHealthConnector"
 
 [tool.hatch.build.targets.sdist]
 include = ["src/prow", "README.md", "LICENSE", "NOTICE"]

@@ -73,6 +73,8 @@ class ConnectorProcess:
         emit_handler: EmitHandler,
         state_get_handler: StateGetHandler,
         state_set_handler: StateSetHandler,
+        *,
+        extra_environ: dict[str, str] | None = None,
     ) -> None:
         self._connector_instance_id = connector_instance_id
         self._entry_point_name = entry_point_name
@@ -81,6 +83,7 @@ class ConnectorProcess:
         self._emit_handler = emit_handler
         self._state_get_handler = state_get_handler
         self._state_set_handler = state_set_handler
+        self._extra_environ = dict(extra_environ or ())
 
         self._proc: asyncio.subprocess.Process | None = None
         self._transport: ConnectorRuntimeTransport | None = None
@@ -95,18 +98,22 @@ class ConnectorProcess:
     def state(self) -> ConnectorProcessState:
         return self._state
 
+    @property
+    def runtime_transport(self) -> ConnectorRuntimeTransport | None:
+        return self._transport
+
     async def start(self) -> None:
         """Spawn subprocess, negotiate hello, start runtime transport dispatch."""
 
         if self._state != ConnectorProcessState.NOT_STARTED:
             raise RuntimeError("ConnectorProcess.start may only be called once.")
 
-        env = connector_subprocess_environ(
-            {
-                "PROW_CONNECTOR_INSTANCE_ID": self._connector_instance_id,
-                "PROW_CONNECTOR_ENTRY_POINT": self._entry_point_name,
-            },
-        )
+        base_env = {
+            "PROW_CONNECTOR_INSTANCE_ID": self._connector_instance_id,
+            "PROW_CONNECTOR_ENTRY_POINT": self._entry_point_name,
+        }
+        base_env.update(self._extra_environ)
+        env = connector_subprocess_environ(base_env)
 
         try:
             proc = await asyncio.create_subprocess_exec(
@@ -197,6 +204,28 @@ class ConnectorProcess:
         with contextlib.suppress(Exception):
             await self._stderr_task
         self._stderr_task = None
+
+    async def terminate_abruptly(self) -> None:
+        """Kill the subprocess without graceful shutdown (supervisor remediation)."""
+
+        proc = self._proc
+        if proc is None:
+            return
+        try:
+            proc.kill()
+        except ProcessLookupError:
+            return
+        try:
+            await asyncio.wait_for(proc.wait(), timeout=30.0)
+        except TimeoutError:
+            logger.error(
+                "connector.process.kill_wait_timeout",
+                connector_instance_id=self._connector_instance_id,
+            )
+        await self._join_stderr_task()
+        if self._transport is not None:
+            await self._transport.wait_dispatch_finished()
+        self._state = ConnectorProcessState.EXITED
 
     async def request_shutdown(self, grace_period_seconds: int = 30) -> None:
         """Send shutdown; escalate terminate/kill if the connector stalls."""
