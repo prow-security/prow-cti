@@ -12,6 +12,18 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Connector SDK base classes and packaging hooks will live here."""
+"""Connector SDK surface for authors (context, transports, typing helpers)."""
 
-# NOTE(scaffold): monolith-mode connector isolation (async task vs subprocess vs pool) is open.
+from prow.connector.context import ConnectorContext, EmitResult
+from prow.connector.transport import ConnectorTransport
+from prow.connector.transport_inprocess import InProcessTransport
+from prow.connector.transport_stdio import StdioTransport, TooManyInFlightError
+
+__all__ = [
+    "ConnectorContext",
+    "ConnectorTransport",
+    "EmitResult",
+    "InProcessTransport",
+    "StdioTransport",
+    "TooManyInFlightError",
+]
