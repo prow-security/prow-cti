@@ -260,7 +260,7 @@ async def test_eof_rejects_pending_runtime_future(monkeypatch: pytest.MonkeyPatc
             await rt.start()
             try:
                 await rt.request_health(timeout=30.0)
-            except BaseException as exc:
+            except Exception as exc:
                 health_err.append(exc)
             await rt.wait_dispatch_finished()
         finally:
