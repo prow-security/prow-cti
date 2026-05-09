@@ -33,10 +33,7 @@ from __future__ import annotations
 import asyncio
 import os
 import sys
-from typing import TYPE_CHECKING, NoReturn, cast
-
-if TYPE_CHECKING:
-    from asyncio import StreamReader, StreamWriter
+from typing import NoReturn, cast
 
 
 def _windows_stdio_workaround() -> bool:
@@ -131,7 +128,7 @@ def connector_subprocess_environ(extra: dict[str, str] | None = None) -> dict[st
     return env
 
 
-async def open_connector_stdio_streams() -> tuple[StreamReader, StreamWriter]:
+async def open_connector_stdio_streams() -> tuple[asyncio.StreamReader, asyncio.StreamWriter]:
     """Binary stdin/stdout as asyncio streams for code running inside the connector."""
 
     loop = asyncio.get_running_loop()
