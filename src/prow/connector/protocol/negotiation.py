@@ -23,7 +23,11 @@ from uuid import uuid4
 from pydantic import ValidationError
 
 from prow.connector.protocol.codec import ProtocolError
-from prow.connector.protocol.framing import read_messages, write_message
+from prow.connector.protocol.framing import (
+    StreamClosedBeforeLineError,
+    read_one_envelope,
+    write_message,
+)
 from prow.connector.protocol.messages import (
     Envelope,
     ErrorBody,
@@ -70,12 +74,14 @@ async def _read_one(
     *,
     timeout_seconds: float,
 ) -> Envelope:
-    messages = read_messages(reader)
     try:
-        return await asyncio.wait_for(anext(messages), timeout=timeout_seconds)
+        return await asyncio.wait_for(
+            read_one_envelope(reader),
+            timeout=timeout_seconds,
+        )
     except TimeoutError as exc:
         raise NegotiationTimeoutError("Timed out waiting for hello negotiation.") from exc
-    except StopAsyncIteration as exc:
+    except StreamClosedBeforeLineError as exc:
         raise ProtocolError(
             ErrorCode.MALFORMED_MESSAGE,
             "Stream closed before hello negotiation completed.",
