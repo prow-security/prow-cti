@@ -1,0 +1,258 @@
+# Copyright 2026 Prow Contributors
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+"""Spawn and supervise a single connector subprocess (Pass C1 subset)."""
+
+from __future__ import annotations
+
+import asyncio
+import contextlib
+import sys
+from collections.abc import Awaitable, Callable
+from enum import StrEnum
+from typing import Any
+
+import structlog
+
+from prow.connector.pipe_stdio import connector_subprocess_environ
+from prow.connector.protocol.codec import ProtocolError
+from prow.connector.protocol.messages import EmitAckPayload
+from prow.connector.protocol.negotiation import (
+    UnsupportedVersionError,
+    perform_hello_runtime,
+)
+from prow.connector.runtime_transport import ConnectorRuntimeTransport
+
+logger = structlog.get_logger(__name__)
+
+EmitHandler = Callable[[str, dict[str, Any]], Awaitable[EmitAckPayload]]
+StateGetHandler = Callable[[str, str], Awaitable[Any | None]]
+StateSetHandler = Callable[[str, str, Any], Awaitable[None]]
+
+
+class ConnectorProcessState(StrEnum):
+    """Minimal lifecycle surface for Pass C1 introspection."""
+
+    NOT_STARTED = "not_started"
+    RUNNING = "running"
+    DRAINING = "draining"
+    EXITED = "exited"
+
+
+class ProcessExitReason(StrEnum):
+    """Why :meth:`ConnectorProcess.wait` returned."""
+
+    GRACEFUL_SHUTDOWN = "graceful_shutdown"
+    CRASHED = "crashed"
+    TIMEOUT_KILLED = "timeout_killed"
+    PROTOCOL_ERROR = "protocol_error"
+    HELLO_FAILED = "hello_failed"
+    SUBPROCESS_SPAWN_FAILED = "subprocess_spawn_failed"
+
+
+class ConnectorProcess:
+    """Owns one subprocess, pipes, and :class:`ConnectorRuntimeTransport`."""
+
+    def __init__(
+        self,
+        connector_instance_id: str,
+        entry_point_name: str,
+        config: dict[str, Any],
+        runtime_version: str,
+        emit_handler: EmitHandler,
+        state_get_handler: StateGetHandler,
+        state_set_handler: StateSetHandler,
+    ) -> None:
+        self._connector_instance_id = connector_instance_id
+        self._entry_point_name = entry_point_name
+        self._config = config
+        self._runtime_version = runtime_version
+        self._emit_handler = emit_handler
+        self._state_get_handler = state_get_handler
+        self._state_set_handler = state_set_handler
+
+        self._proc: asyncio.subprocess.Process | None = None
+        self._transport: ConnectorRuntimeTransport | None = None
+        self._stderr_task: asyncio.Task[None] | None = None
+
+        self._state = ConnectorProcessState.NOT_STARTED
+        self._timeout_kill = False
+        self._spawn_failed = False
+        self._hello_failed = False
+
+    @property
+    def state(self) -> ConnectorProcessState:
+        return self._state
+
+    async def start(self) -> None:
+        """Spawn subprocess, negotiate hello, start runtime transport dispatch."""
+
+        if self._state != ConnectorProcessState.NOT_STARTED:
+            raise RuntimeError("ConnectorProcess.start may only be called once.")
+
+        env = connector_subprocess_environ(
+            {
+                "PROW_CONNECTOR_INSTANCE_ID": self._connector_instance_id,
+                "PROW_CONNECTOR_ENTRY_POINT": self._entry_point_name,
+            },
+        )
+
+        try:
+            proc = await asyncio.create_subprocess_exec(
+                sys.executable,
+                "-c",
+                "from prow.connector.runner import main; main()",
+                stdin=asyncio.subprocess.PIPE,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+                env=env,
+            )
+        except OSError as exc:
+            self._spawn_failed = True
+            self._state = ConnectorProcessState.EXITED
+            logger.error(
+                "connector.process.spawn_failed",
+                connector_instance_id=self._connector_instance_id,
+                error=str(exc),
+                exc_info=True,
+            )
+            return
+
+        self._proc = proc
+        if proc.stdin is None or proc.stdout is None or proc.stderr is None:
+            raise RuntimeError("asyncio subprocess is missing stdio pipes.")
+
+        self._stderr_task = asyncio.create_task(
+            self._drain_stderr(proc.stderr),
+            name=f"connector-stderr-{self._connector_instance_id}",
+        )
+
+        reader = proc.stdout
+        writer = proc.stdin
+
+        try:
+            protocol_version = await perform_hello_runtime(
+                reader,
+                writer,
+                self._runtime_version,
+                self._config,
+                timeout_seconds=30.0,
+            )
+        except (ProtocolError, UnsupportedVersionError, TimeoutError) as exc:
+            self._hello_failed = True
+            logger.error(
+                "connector.process.hello_failed",
+                connector_instance_id=self._connector_instance_id,
+                error=str(exc),
+                exc_info=True,
+            )
+            with contextlib.suppress(ProcessLookupError):
+                proc.kill()
+            with contextlib.suppress(Exception):
+                await asyncio.wait_for(proc.wait(), timeout=30.0)
+            await self._join_stderr_task()
+            self._state = ConnectorProcessState.EXITED
+            return
+
+        self._transport = ConnectorRuntimeTransport(
+            self._connector_instance_id,
+            reader,
+            writer,
+            protocol_version,
+            self._emit_handler,
+            self._state_get_handler,
+            self._state_set_handler,
+        )
+        await self._transport.start()
+        self._state = ConnectorProcessState.RUNNING
+
+    async def _drain_stderr(self, stream: asyncio.StreamReader) -> None:
+        bind = structlog.contextvars.bind_contextvars(
+            connector_instance_id=self._connector_instance_id,
+        )
+        try:
+            while True:
+                line = await stream.readline()
+                if not line:
+                    return
+                text = line.decode("utf-8", errors="replace").rstrip()
+                logger.error("connector.subprocess.stderr", message=text)
+        finally:
+            structlog.contextvars.reset_contextvars(**bind)
+
+    async def _join_stderr_task(self) -> None:
+        if self._stderr_task is None:
+            return
+        with contextlib.suppress(Exception):
+            await self._stderr_task
+        self._stderr_task = None
+
+    async def request_shutdown(self, grace_period_seconds: int = 30) -> None:
+        """Send shutdown; escalate terminate/kill if the connector stalls."""
+
+        if self._transport is None or self._proc is None:
+            return
+
+        self._state = ConnectorProcessState.DRAINING
+        try:
+            await self._transport.request_shutdown(grace_period_seconds=grace_period_seconds)
+        except TimeoutError:
+            self._timeout_kill = True
+            logger.error(
+                "connector.process.shutdown_timeout",
+                connector_instance_id=self._connector_instance_id,
+            )
+            self._proc.terminate()
+            try:
+                await asyncio.wait_for(self._proc.wait(), timeout=10.0)
+            except TimeoutError:
+                logger.error(
+                    "connector.process.shutdown_kill",
+                    connector_instance_id=self._connector_instance_id,
+                )
+                self._proc.kill()
+                await self._proc.wait()
+
+    async def wait(self) -> ProcessExitReason:
+        """Await subprocess exit and classify the outcome."""
+
+        if self._spawn_failed:
+            return ProcessExitReason.SUBPROCESS_SPAWN_FAILED
+
+        proc = self._proc
+        if proc is None:
+            return ProcessExitReason.SUBPROCESS_SPAWN_FAILED
+
+        code = await proc.wait()
+        await self._join_stderr_task()
+
+        if self._transport is not None:
+            await self._transport.wait_dispatch_finished()
+
+        self._state = ConnectorProcessState.EXITED
+
+        if self._hello_failed:
+            return ProcessExitReason.HELLO_FAILED
+
+        fatal = self._transport.fatal_protocol_error if self._transport is not None else None
+        if fatal is not None:
+            return ProcessExitReason.PROTOCOL_ERROR
+
+        if self._timeout_kill:
+            return ProcessExitReason.TIMEOUT_KILLED
+
+        if code == 0:
+            return ProcessExitReason.GRACEFUL_SHUTDOWN
+
+        return ProcessExitReason.CRASHED

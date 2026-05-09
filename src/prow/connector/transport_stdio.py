@@ -233,7 +233,10 @@ class StdioTransport:
         )
 
     async def _reply_shutdown_request(self, env: Envelope) -> None:
-        self._cancelled_event.set()
+        # Emit shutdown-ack on the wire before unblocking connector code. If
+        # ``cancelled`` is set first, the runner can reach ``teardown()`` and
+        # exit while this coroutine is still awaiting the ack write, and the
+        # runtime will never see ``shutdown-ack`` on stdout.
         await write_message(
             self._writer,
             Envelope(
@@ -244,6 +247,7 @@ class StdioTransport:
                 id_ref=env.id,
             ),
         )
+        self._cancelled_event.set()
 
     async def _forward_observability_from_peer(self, env: Envelope) -> None:
         """If the peer sends log/metric frames, surface them on prow's logging stack."""

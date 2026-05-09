@@ -28,18 +28,28 @@ from prow.connector.protocol.codec import (
 from prow.connector.protocol.messages import Envelope, ErrorCode
 
 
-async def read_messages(
+class StreamClosedBeforeLineError(Exception):
+    """EOF before a full newline-terminated frame (clean stream end)."""
+
+
+async def read_one_envelope(
     stream: asyncio.StreamReader,
     max_line_bytes: int = 1 << 20,
-) -> AsyncIterator[Envelope]:
-    """Yield envelopes parsed from a newline-delimited async stream."""
+) -> Envelope:
+    """Read one non-empty JSONL envelope. Skips blank lines.
+
+    Unlike ``anext(read_messages(...))``, this does not leave a second
+    :meth:`~asyncio.StreamReader.readuntil` scheduled on the same reader.
+    Only one reader coroutine may consume a given :class:`asyncio.StreamReader`
+    at a time.
+    """
 
     while True:
         try:
             line = await stream.readuntil(b"\n")
         except asyncio.IncompleteReadError as exc:
             if not exc.partial:
-                return
+                raise StreamClosedBeforeLineError from None
             if len(exc.partial) > max_line_bytes:
                 raise MessageTooLargeError(
                     "Protocol line exceeds the maximum line size.",
@@ -68,7 +78,20 @@ async def read_messages(
         if line == b"\n":
             continue
 
-        yield decode(line)
+        return decode(line)
+
+
+async def read_messages(
+    stream: asyncio.StreamReader,
+    max_line_bytes: int = 1 << 20,
+) -> AsyncIterator[Envelope]:
+    """Yield envelopes parsed from a newline-delimited async stream."""
+
+    while True:
+        try:
+            yield await read_one_envelope(stream, max_line_bytes=max_line_bytes)
+        except StreamClosedBeforeLineError:
+            return
 
 
 async def write_message(
