@@ -61,11 +61,11 @@ async def _run_with_connector(
     try:
         try:
             runtime_result: Any | BaseException = await runtime(reader, writer)
-        except BaseException as exc:
+        except Exception as exc:
             runtime_result = exc
         try:
             connector_outcome: Any | BaseException = await connector_result
-        except BaseException as exc:
+        except Exception as exc:
             connector_outcome = exc
         return runtime_result, connector_outcome
     finally:
