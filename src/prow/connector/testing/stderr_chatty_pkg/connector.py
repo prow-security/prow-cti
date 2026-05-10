@@ -1,0 +1,27 @@
+# Copyright 2026 Prow Contributors
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+"""Writes many stderr lines for stderr capture integration tests."""
+
+from __future__ import annotations
+
+import sys
+
+from prow.connector.base import ConnectorBase
+
+
+class StderrChattyConnector(ConnectorBase):
+    async def setup(self) -> None:
+        for i in range(250):
+            print(f"err{i}", file=sys.stderr, flush=True)

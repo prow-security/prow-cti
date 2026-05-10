@@ -27,6 +27,8 @@ if TYPE_CHECKING:
     from prow.connector.base import ConnectorBase
     from prow.connector.context import ConnectorContext, EmitResult
     from prow.connector.instance import ConnectorInstance
+    from prow.connector.log_forwarder import LogForwarder
+    from prow.connector.metric_forwarder import MetricForwarder
     from prow.connector.process import ConnectorProcess, ConnectorProcessState, ProcessExitReason
     from prow.connector.restart_policy import RestartDecision, RestartPolicy
     from prow.connector.runtime_transport import ConnectorProcessExited, ConnectorRuntimeTransport
@@ -112,6 +114,14 @@ def __getattr__(name: str) -> Any:
         from prow.connector.restart_policy import RestartDecision
 
         return RestartDecision
+    if name == "LogForwarder":
+        from prow.connector.log_forwarder import LogForwarder
+
+        return LogForwarder
+    if name == "MetricForwarder":
+        from prow.connector.metric_forwarder import MetricForwarder
+
+        return MetricForwarder
     msg = f"module {__name__!r} has no attribute {name!r}"
     raise AttributeError(msg)
 
@@ -129,6 +139,8 @@ __all__ = [
     "EmitResult",
     "InProcessTransport",
     "InvalidStateTransitionError",
+    "LogForwarder",
+    "MetricForwarder",
     "ProcessExitReason",
     "RestartDecision",
     "RestartPolicy",

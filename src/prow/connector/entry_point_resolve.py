@@ -34,6 +34,22 @@ _BUNDLED_CONNECTOR_ENTRY_POINTS: tuple[tuple[str, str], ...] = (
     ("minimal_test", "prow.connector.testing.minimal_pkg.connector:MinimalConnector"),
     ("crash_setup_test", "prow.connector.testing.crash_setup_pkg.connector:CrashSetupConnector"),
     ("slow_health_test", "prow.connector.testing.slow_health_pkg.connector:SlowHealthConnector"),
+    (
+        "verbose_logger_test",
+        "prow.connector.testing.verbose_logger_pkg.connector:VerboseLoggerConnector",
+    ),
+    (
+        "metric_emitter_test",
+        "prow.connector.testing.metric_emitter_pkg.connector:MetricEmitterConnector",
+    ),
+    (
+        "stderr_chatty_test",
+        "prow.connector.testing.stderr_chatty_pkg.connector:StderrChattyConnector",
+    ),
+    (
+        "secret_logger_test",
+        "prow.connector.testing.secret_logger_pkg.connector:SecretLoggerConnector",
+    ),
 )
 
 
@@ -47,6 +63,35 @@ def resolve_connector_entry_point(entry_name: str) -> EntryPoint | None:
         if ep.name == entry_name:
             return ep
     return None
+
+
+def collect_secret_field_paths(schema_fragment: dict[str, Any], prefix: str = "") -> frozenset[str]:
+    """Return dot-separated JSON paths for fields marked ``secret: true`` in a JSON Schema."""
+
+    found: set[str] = set()
+    props = schema_fragment.get("properties")
+    if not isinstance(props, dict):
+        return frozenset()
+    for key, subschema in props.items():
+        path = f"{prefix}.{key}" if prefix else key
+        if isinstance(subschema, dict):
+            if subschema.get("secret") is True:
+                found.add(path)
+            sub_type = subschema.get("type")
+            nested_props = subschema.get("properties")
+            if isinstance(nested_props, dict) and (sub_type == "object" or nested_props):
+                found |= set(collect_secret_field_paths(subschema, path))
+    return frozenset(found)
+
+
+def secret_field_paths_for_entry_point(entry_point_name: str) -> frozenset[str]:
+    """Secret paths derived from the connector manifest for log redaction."""
+
+    ep = resolve_connector_entry_point(entry_point_name)
+    if ep is None:
+        raise ValueError(f"Unknown connector entry point {entry_point_name!r}.")
+    schema = load_manifest_config_schema(ep)
+    return collect_secret_field_paths(schema)
 
 
 def load_manifest_config_schema(ep: EntryPoint) -> dict[str, Any]:

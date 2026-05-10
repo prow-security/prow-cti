@@ -1,0 +1,22 @@
+{
+  "config_schema": {
+    "type": "object",
+    "required": ["api_key"],
+    "properties": {
+      "api_key": {
+        "type": "string",
+        "secret": true
+      },
+      "nested": {
+        "type": "object",
+        "properties": {
+          "token": {
+            "type": "string",
+            "secret": true
+          }
+        }
+      }
+    },
+    "additionalProperties": true
+  }
+}
