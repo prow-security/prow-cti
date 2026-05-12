@@ -26,6 +26,9 @@ from typing import TYPE_CHECKING, Any
 if TYPE_CHECKING:
     from prow.connector.base import ConnectorBase
     from prow.connector.context import ConnectorContext, EmitResult
+    from prow.connector.dev_emit import DevEmitHandler
+    from prow.connector.dev_runtime import DevRuntime, ReloadResult
+    from prow.connector.dev_watcher import DevWatcher
     from prow.connector.instance import ConnectorInstance
     from prow.connector.log_forwarder import LogForwarder
     from prow.connector.metric_forwarder import MetricForwarder
@@ -42,6 +45,22 @@ if TYPE_CHECKING:
 def __getattr__(name: str) -> Any:
     """Load connector SDK symbols on demand (subprocess entry avoids eager imports)."""
 
+    if name == "DevEmitHandler":
+        from prow.connector.dev_emit import DevEmitHandler
+
+        return DevEmitHandler
+    if name == "DevRuntime":
+        from prow.connector.dev_runtime import DevRuntime
+
+        return DevRuntime
+    if name == "DevWatcher":
+        from prow.connector.dev_watcher import DevWatcher
+
+        return DevWatcher
+    if name == "ReloadResult":
+        from prow.connector.dev_runtime import ReloadResult
+
+        return ReloadResult
     if name == "ConnectorBase":
         from prow.connector.base import ConnectorBase
 
@@ -136,12 +155,16 @@ __all__ = [
     "ConnectorRuntimeTransport",
     "ConnectorState",
     "ConnectorTransport",
+    "DevEmitHandler",
+    "DevRuntime",
+    "DevWatcher",
     "EmitResult",
     "InProcessTransport",
     "InvalidStateTransitionError",
     "LogForwarder",
     "MetricForwarder",
     "ProcessExitReason",
+    "ReloadResult",
     "RestartDecision",
     "RestartPolicy",
     "StdioTransport",

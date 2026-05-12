@@ -13,7 +13,7 @@ around three commitments:
 - **Connectors are the product.** Writing a feed connector should be a
   weekend, not an onboarding programme.
 
-Prow CTI is the first product from [Prow](https://github.com/prow-cti),
+Prow CTI is the first product from [Prow](https://github.com/prow-sh),
 a company building open-source security infrastructure.
 
 > **Status: pre-alpha.** The repository scaffold is in place. No platform
@@ -147,4 +147,4 @@ A `CONTRIBUTING.md` with the full process will land alongside v0.1.
 | Version | 0.0.0 (scaffold) |
 | Python | 3.12+ |
 | License | Apache-2.0 |
-| Maintainer | [Prow](https://github.com/prow-cti) |
+| Maintainer | [Prow](https://github.com/prow-sh) |

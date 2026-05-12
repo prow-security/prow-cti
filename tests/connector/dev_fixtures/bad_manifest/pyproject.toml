@@ -1,0 +1,6 @@
+[project]
+name = "bad-manifest-dev-fixture"
+version = "0.0.0"
+
+[project.entry-points."prow.connectors"]
+bad_m = "nope:No"

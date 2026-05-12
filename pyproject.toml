@@ -11,6 +11,7 @@ license = "Apache-2.0"
 requires-python = ">=3.12"
 authors = [{ name = "Prow Contributors" }]
 dependencies = [
+    "watchdog",
     "fastapi",
     "uvicorn[standard]",
     "pydantic>=2",

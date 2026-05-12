@@ -1,0 +1,14 @@
+{
+  "name": "good_pkg",
+  "type": "external_import",
+  "config_schema": {
+    "type": "object",
+    "properties": {
+      "token": {
+        "type": "string",
+        "default": "test-token"
+      }
+    },
+    "additionalProperties": true
+  }
+}

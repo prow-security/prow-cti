@@ -16,11 +16,13 @@
 
 import typer
 
+from prow.cli.connector import app as connector_app
+
 app = typer.Typer(invoke_without_command=True)
 
-# NOTE(scaffold): commands land in v0.1
+app.add_typer(connector_app, name="connector", help="Connector tooling")
 
 
 @app.callback()
 def _root(_ctx: typer.Context) -> None:
-    """Prow CLI — scaffold only."""
+    """Prow CLI."""
