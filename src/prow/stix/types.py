@@ -237,6 +237,12 @@ class ExternalReference(BaseModel):
     hashes: dict[str, str] | None = None
     external_id: str | None = None
 
+    @model_serializer(mode="wrap")
+    def _serialize_drop_none(self, handler: SerializerFunctionWrapHandler) -> dict[str, Any]:
+        """Omit unset optionals so JSON Schema (no explicit nulls) accepts the wire form."""
+        raw: dict[str, Any] = handler(self)
+        return {k: v for k, v in raw.items() if v is not None}
+
 
 class KillChainPhase(BaseModel):
     """A single kill-chain phase referenced by an SDO."""

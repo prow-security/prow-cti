@@ -32,3 +32,13 @@ Thumbs.db
 # Environment (never commit secrets)
 .env
 .env.local
+
+# Defensive: prevent accidental commits of Windows system paths.
+# These can sneak in if a tool runs `git add` with a path that
+# expands `%SystemDrive%` as a literal directory rather than the
+# Windows environment variable.
+%SystemDrive%/
+%SystemDrive%\
+ProgramData/
+ProgramData\
+*.ver0x*.db

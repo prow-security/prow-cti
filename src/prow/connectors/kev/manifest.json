@@ -1,0 +1,20 @@
+{
+  "name": "cisa-kev",
+  "type": "external_import",
+  "version": "0.1.0",
+  "display_name": "CISA Known Exploited Vulnerabilities",
+  "description": "Ingests the CISA KEV catalog as STIX 2.1 vulnerabilities, indicators, and relationships.",
+  "config_schema": {
+    "type": "object",
+    "properties": {
+      "feed_url": {
+        "type": "string",
+        "default": "https://www.cisa.gov/sites/default/files/feeds/known_exploited_vulnerabilities.json"
+      },
+      "http_timeout_seconds": {
+        "type": "number",
+        "default": 30
+      }
+    }
+  }
+}

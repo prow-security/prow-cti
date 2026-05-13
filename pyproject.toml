@@ -55,6 +55,7 @@ verbose_logger_test = "prow.connector.testing.verbose_logger_pkg.connector:Verbo
 metric_emitter_test = "prow.connector.testing.metric_emitter_pkg.connector:MetricEmitterConnector"
 stderr_chatty_test = "prow.connector.testing.stderr_chatty_pkg.connector:StderrChattyConnector"
 secret_logger_test = "prow.connector.testing.secret_logger_pkg.connector:SecretLoggerConnector"
+"cisa-kev" = "prow.connectors.kev:KevConnector"
 
 [tool.hatch.build.targets.sdist]
 include = ["src/prow", "README.md", "LICENSE", "NOTICE"]
