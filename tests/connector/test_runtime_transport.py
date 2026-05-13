@@ -18,6 +18,7 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 from typing import Any
 from uuid import uuid4
 
@@ -40,6 +41,19 @@ def _bundle() -> dict[str, Any]:
     return {"type": "bundle", "id": "bundle--" + uuid4().hex[:8], "objects": []}
 
 
+async def _close_server_writer(writer: asyncio.StreamWriter) -> None:
+    """Close a server-side writer best-effort.
+
+    Server-side connection handlers must close their writer for
+    ``Server.wait_closed()`` to resolve on Python 3.12 patch releases; the
+    writer may already be closed by the test body, so swallow expected errors.
+    """
+
+    with contextlib.suppress(Exception):
+        writer.close()
+        await writer.wait_closed()
+
+
 @pytest.mark.asyncio
 async def test_emit_round_trip_with_handler() -> None:
     saw: list[dict[str, Any]] = []
@@ -55,18 +69,21 @@ async def test_emit_round_trip_with_handler() -> None:
         return None
 
     async def runtime_peer(reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
-        rt = ConnectorRuntimeTransport(
-            "rt-emit",
-            reader,
-            writer,
-            1,
-            emit_handler,
-            get_handler,
-            set_handler,
-        )
-        await rt.start()
-        await asyncio.sleep(0.3)
-        await rt.wait_dispatch_finished()
+        try:
+            rt = ConnectorRuntimeTransport(
+                "rt-emit",
+                reader,
+                writer,
+                1,
+                emit_handler,
+                get_handler,
+                set_handler,
+            )
+            await rt.start()
+            await asyncio.sleep(0.3)
+            await rt.wait_dispatch_finished()
+        finally:
+            await _close_server_writer(writer)
 
     server = await asyncio.start_server(runtime_peer, "127.0.0.1", 0)
     port = server.sockets[0].getsockname()[1]
@@ -80,7 +97,7 @@ async def test_emit_round_trip_with_handler() -> None:
     writer.close()
     await writer.wait_closed()
     server.close()
-    await server.wait_closed()
+    await asyncio.wait_for(server.wait_closed(), timeout=5.0)
 
 
 @pytest.mark.asyncio
@@ -97,18 +114,21 @@ async def test_log_and_metric_complete_without_ack_round_trip() -> None:
         return None
 
     async def runtime_peer(reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
-        rt = ConnectorRuntimeTransport(
-            "rt-fnf",
-            reader,
-            writer,
-            1,
-            emit_handler,
-            get_handler,
-            set_handler,
-        )
-        await rt.start()
-        await asyncio.sleep(0.4)
-        await rt.wait_dispatch_finished()
+        try:
+            rt = ConnectorRuntimeTransport(
+                "rt-fnf",
+                reader,
+                writer,
+                1,
+                emit_handler,
+                get_handler,
+                set_handler,
+            )
+            await rt.start()
+            await asyncio.sleep(0.4)
+            await rt.wait_dispatch_finished()
+        finally:
+            await _close_server_writer(writer)
 
     server = await asyncio.start_server(runtime_peer, "127.0.0.1", 0)
     port = server.sockets[0].getsockname()[1]
@@ -121,7 +141,7 @@ async def test_log_and_metric_complete_without_ack_round_trip() -> None:
     writer.close()
     await writer.wait_closed()
     server.close()
-    await server.wait_closed()
+    await asyncio.wait_for(server.wait_closed(), timeout=5.0)
 
 
 @pytest.mark.asyncio
@@ -138,20 +158,23 @@ async def test_request_health_resolves() -> None:
         return None
 
     async def runtime_peer(reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
-        rt = ConnectorRuntimeTransport(
-            "rt-h",
-            reader,
-            writer,
-            1,
-            emit_handler,
-            get_handler,
-            set_handler,
-        )
-        await rt.start()
-        await asyncio.sleep(0.2)
-        h = await rt.request_health(timeout=5.0)
-        health_out.append(h)
-        await rt.wait_dispatch_finished()
+        try:
+            rt = ConnectorRuntimeTransport(
+                "rt-h",
+                reader,
+                writer,
+                1,
+                emit_handler,
+                get_handler,
+                set_handler,
+            )
+            await rt.start()
+            await asyncio.sleep(0.2)
+            h = await rt.request_health(timeout=5.0)
+            health_out.append(h)
+            await rt.wait_dispatch_finished()
+        finally:
+            await _close_server_writer(writer)
 
     server = await asyncio.start_server(runtime_peer, "127.0.0.1", 0)
     port = server.sockets[0].getsockname()[1]
@@ -163,7 +186,7 @@ async def test_request_health_resolves() -> None:
     writer.close()
     await writer.wait_closed()
     server.close()
-    await server.wait_closed()
+    await asyncio.wait_for(server.wait_closed(), timeout=5.0)
 
     assert len(health_out) == 1
     assert health_out[0].status == HealthStatus.HEALTHY
@@ -183,20 +206,23 @@ async def test_request_cancel_peer_returns_ack() -> None:
     cancel_out: list[bool] = []
 
     async def fake_connector(reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
-        async for env in read_messages(reader):
-            if env.kind == "cancel":
-                CancelPayload.model_validate(env.payload)
-                ack = CancelAckPayload(cancelled=True)
-                await write_message(
-                    writer,
-                    Envelope(
-                        v=env.v,
-                        id=uuid4().hex,
-                        kind="cancel-ack",
-                        payload=ack.model_dump(mode="json"),
-                        id_ref=env.id,
-                    ),
-                )
+        try:
+            async for env in read_messages(reader):
+                if env.kind == "cancel":
+                    CancelPayload.model_validate(env.payload)
+                    ack = CancelAckPayload(cancelled=True)
+                    await write_message(
+                        writer,
+                        Envelope(
+                            v=env.v,
+                            id=uuid4().hex,
+                            kind="cancel-ack",
+                            payload=ack.model_dump(mode="json"),
+                            id_ref=env.id,
+                        ),
+                    )
+        finally:
+            await _close_server_writer(writer)
 
     server = await asyncio.start_server(fake_connector, "127.0.0.1", 0)
     port = server.sockets[0].getsockname()[1]
@@ -218,7 +244,7 @@ async def test_request_cancel_peer_returns_ack() -> None:
     await writer.wait_closed()
     await rt.wait_dispatch_finished()
     server.close()
-    await server.wait_closed()
+    await asyncio.wait_for(server.wait_closed(), timeout=5.0)
 
     assert cancel_out == [True]
 
@@ -264,6 +290,7 @@ async def test_eof_rejects_pending_runtime_future(monkeypatch: pytest.MonkeyPatc
                 health_err.append(exc)
             await rt.wait_dispatch_finished()
         finally:
+            await _close_server_writer(writer)
             peer_done.set()
 
     server = await asyncio.start_server(runtime_peer, "127.0.0.1", 0)
@@ -273,7 +300,7 @@ async def test_eof_rejects_pending_runtime_future(monkeypatch: pytest.MonkeyPatc
     writer.close()
     await writer.wait_closed()
     server.close()
-    await server.wait_closed()
+    await asyncio.wait_for(server.wait_closed(), timeout=5.0)
     await asyncio.wait_for(peer_done.wait(), timeout=30.0)
 
     assert len(health_err) == 1

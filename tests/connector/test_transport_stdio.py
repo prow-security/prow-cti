@@ -17,6 +17,7 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 from typing import Any
 from uuid import uuid4
 
@@ -40,28 +41,44 @@ def _bundle() -> dict[str, Any]:
     return {"type": "bundle", "id": "bundle--" + uuid4().hex[:8], "objects": []}
 
 
+async def _close_server_writer(writer: asyncio.StreamWriter) -> None:
+    """Close a server-side writer best-effort.
+
+    Server-side connection handlers must close their writer for
+    ``Server.wait_closed()`` to resolve on Python 3.12 patch releases; the
+    writer may already be closed by the test body, so swallow expected errors.
+    """
+
+    with contextlib.suppress(Exception):
+        writer.close()
+        await writer.wait_closed()
+
+
 @pytest.mark.asyncio
 async def test_emit_round_trip_counts() -> None:
     async def peer(reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
-        async for env in read_messages(reader):
-            if env.kind == "emit":
-                ack = EmitAckPayload(
-                    accepted=2,
-                    duplicates=1,
-                    validation_failures=[
-                        ValidationFailure(object_id="ind--1", error="shape"),
-                    ],
-                )
-                await write_message(
-                    writer,
-                    Envelope(
-                        v=env.v,
-                        id=uuid4().hex,
-                        kind="emit-ack",
-                        payload=ack.model_dump(mode="json"),
-                        id_ref=env.id,
-                    ),
-                )
+        try:
+            async for env in read_messages(reader):
+                if env.kind == "emit":
+                    ack = EmitAckPayload(
+                        accepted=2,
+                        duplicates=1,
+                        validation_failures=[
+                            ValidationFailure(object_id="ind--1", error="shape"),
+                        ],
+                    )
+                    await write_message(
+                        writer,
+                        Envelope(
+                            v=env.v,
+                            id=uuid4().hex,
+                            kind="emit-ack",
+                            payload=ack.model_dump(mode="json"),
+                            id_ref=env.id,
+                        ),
+                    )
+        finally:
+            await _close_server_writer(writer)
 
     server = await asyncio.start_server(peer, "127.0.0.1", 0)
     port = server.sockets[0].getsockname()[1]
@@ -77,25 +94,28 @@ async def test_emit_round_trip_counts() -> None:
     writer.close()
     await writer.wait_closed()
     server.close()
-    await server.wait_closed()
+    await asyncio.wait_for(server.wait_closed(), timeout=5.0)
 
 
 @pytest.mark.asyncio
 async def test_concurrent_emits_match_ids() -> None:
     async def peer(reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
-        async for env in read_messages(reader):
-            if env.kind == "emit":
-                ack = EmitAckPayload(accepted=1, duplicates=0, validation_failures=[])
-                await write_message(
-                    writer,
-                    Envelope(
-                        v=env.v,
-                        id=uuid4().hex,
-                        kind="emit-ack",
-                        payload=ack.model_dump(mode="json"),
-                        id_ref=env.id,
-                    ),
-                )
+        try:
+            async for env in read_messages(reader):
+                if env.kind == "emit":
+                    ack = EmitAckPayload(accepted=1, duplicates=0, validation_failures=[])
+                    await write_message(
+                        writer,
+                        Envelope(
+                            v=env.v,
+                            id=uuid4().hex,
+                            kind="emit-ack",
+                            payload=ack.model_dump(mode="json"),
+                            id_ref=env.id,
+                        ),
+                    )
+        finally:
+            await _close_server_writer(writer)
 
     server = await asyncio.start_server(peer, "127.0.0.1", 0)
     port = server.sockets[0].getsockname()[1]
@@ -109,7 +129,7 @@ async def test_concurrent_emits_match_ids() -> None:
     writer.close()
     await writer.wait_closed()
     server.close()
-    await server.wait_closed()
+    await asyncio.wait_for(server.wait_closed(), timeout=5.0)
 
 
 @pytest.mark.asyncio
@@ -140,9 +160,12 @@ async def test_too_many_in_flight_raises() -> None:
                 ),
             )
 
-        async for env in read_messages(reader):
-            t = asyncio.create_task(handle(env))
-            handle_tasks.append(t)
+        try:
+            async for env in read_messages(reader):
+                t = asyncio.create_task(handle(env))
+                handle_tasks.append(t)
+        finally:
+            await _close_server_writer(writer)
 
     server = await asyncio.start_server(peer, "127.0.0.1", 0)
     port = server.sockets[0].getsockname()[1]
@@ -160,29 +183,32 @@ async def test_too_many_in_flight_raises() -> None:
     writer.close()
     await writer.wait_closed()
     server.close()
-    await server.wait_closed()
+    await asyncio.wait_for(server.wait_closed(), timeout=5.0)
 
 
 @pytest.mark.asyncio
 async def test_error_envelope_rejects_pending_future() -> None:
     async def peer(reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
-        async for env in read_messages(reader):
-            if env.kind == "emit":
-                await write_message(
-                    writer,
-                    Envelope(
-                        v=env.v,
-                        id=uuid4().hex,
-                        kind="emit-ack",
-                        payload={},
-                        id_ref=env.id,
-                        error=ErrorBody(
-                            code=ErrorCode.VALIDATION_ERROR,
-                            message="bad bundle",
-                            details={"hint": "fix types"},
+        try:
+            async for env in read_messages(reader):
+                if env.kind == "emit":
+                    await write_message(
+                        writer,
+                        Envelope(
+                            v=env.v,
+                            id=uuid4().hex,
+                            kind="emit-ack",
+                            payload={},
+                            id_ref=env.id,
+                            error=ErrorBody(
+                                code=ErrorCode.VALIDATION_ERROR,
+                                message="bad bundle",
+                                details={"hint": "fix types"},
+                            ),
                         ),
-                    ),
-                )
+                    )
+        finally:
+            await _close_server_writer(writer)
 
     server = await asyncio.start_server(peer, "127.0.0.1", 0)
     port = server.sockets[0].getsockname()[1]
@@ -199,7 +225,7 @@ async def test_error_envelope_rejects_pending_future() -> None:
     writer.close()
     await writer.wait_closed()
     server.close()
-    await server.wait_closed()
+    await asyncio.wait_for(server.wait_closed(), timeout=5.0)
 
 
 @pytest.mark.asyncio
@@ -208,21 +234,24 @@ async def test_cancel_in_flight_emit() -> None:
     emit_ids: list[str] = []
 
     async def peer(reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
-        async for env in read_messages(reader):
-            if env.kind == "emit":
-                emit_ids.append(env.id)
-                saw_emit.set()
-            elif env.kind == "cancel":
-                await write_message(
-                    writer,
-                    Envelope(
-                        v=env.v,
-                        id=uuid4().hex,
-                        kind="cancel-ack",
-                        payload=CancelAckPayload(cancelled=True).model_dump(mode="json"),
-                        id_ref=env.id,
-                    ),
-                )
+        try:
+            async for env in read_messages(reader):
+                if env.kind == "emit":
+                    emit_ids.append(env.id)
+                    saw_emit.set()
+                elif env.kind == "cancel":
+                    await write_message(
+                        writer,
+                        Envelope(
+                            v=env.v,
+                            id=uuid4().hex,
+                            kind="cancel-ack",
+                            payload=CancelAckPayload(cancelled=True).model_dump(mode="json"),
+                            id_ref=env.id,
+                        ),
+                    )
+        finally:
+            await _close_server_writer(writer)
 
     server = await asyncio.start_server(peer, "127.0.0.1", 0)
     port = server.sockets[0].getsockname()[1]
@@ -242,24 +271,27 @@ async def test_cancel_in_flight_emit() -> None:
     writer.close()
     await writer.wait_closed()
     server.close()
-    await server.wait_closed()
+    await asyncio.wait_for(server.wait_closed(), timeout=5.0)
 
 
 @pytest.mark.asyncio
 async def test_shutdown_sets_cancelled_and_ack() -> None:
     async def peer(reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
-        async for env in read_messages(reader):
-            if env.kind == "shutdown":
-                await write_message(
-                    writer,
-                    Envelope(
-                        v=env.v,
-                        id=uuid4().hex,
-                        kind="shutdown-ack",
-                        payload=ShutdownAckPayload().model_dump(mode="json"),
-                        id_ref=env.id,
-                    ),
-                )
+        try:
+            async for env in read_messages(reader):
+                if env.kind == "shutdown":
+                    await write_message(
+                        writer,
+                        Envelope(
+                            v=env.v,
+                            id=uuid4().hex,
+                            kind="shutdown-ack",
+                            payload=ShutdownAckPayload().model_dump(mode="json"),
+                            id_ref=env.id,
+                        ),
+                    )
+        finally:
+            await _close_server_writer(writer)
 
     server = await asyncio.start_server(peer, "127.0.0.1", 0)
     port = server.sockets[0].getsockname()[1]
@@ -270,18 +302,25 @@ async def test_shutdown_sets_cancelled_and_ack() -> None:
     await transport.shutdown(grace_period_seconds=5)
     assert transport.cancelled.is_set()
 
+    writer.close()
+    await writer.wait_closed()
     server.close()
-    await server.wait_closed()
+    await asyncio.wait_for(server.wait_closed(), timeout=5.0)
 
 
 @pytest.mark.asyncio
 async def test_eof_mid_emit_fails_pending() -> None:
     async def peer(reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
-        async for env in read_messages(reader):
-            if env.kind == "emit":
-                writer.close()
-                await writer.wait_closed()
-                return
+        try:
+            async for env in read_messages(reader):
+                if env.kind == "emit":
+                    writer.close()
+                    await writer.wait_closed()
+                    return
+        finally:
+            # The handler body explicitly closes the writer above; this is
+            # belt-and-braces in case the loop exits via another path.
+            await _close_server_writer(writer)
 
     server = await asyncio.start_server(peer, "127.0.0.1", 0)
     port = server.sockets[0].getsockname()[1]
@@ -292,5 +331,7 @@ async def test_eof_mid_emit_fails_pending() -> None:
         await transport.emit(_bundle())
     assert "closed" in str(excinfo.value.message).lower()
 
+    writer.close()
+    await writer.wait_closed()
     server.close()
-    await server.wait_closed()
+    await asyncio.wait_for(server.wait_closed(), timeout=5.0)

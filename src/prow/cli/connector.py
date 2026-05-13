@@ -50,8 +50,6 @@ from prow.connector.protocol.messages import MetricPayload
 
 app = typer.Typer(no_args_is_help=True)
 
-_ISSUE_STUB = "Pass D — tracked as prow-cti#connector-http-fixture-replay"
-
 _WARN_SIDE_EFFECTS_BANNER = (
     "Hot reload hint: duplicate singletons or stale globals after save often mean "
     "import-time side effects (network calls, threads, mutations at import time)."
@@ -226,7 +224,10 @@ def test_command(
 
     del path, fixture
     typer.echo(
-        f"Fixture replay is not yet implemented; see {_ISSUE_STUB}.",
+        "Fixture replay is not yet implemented. The connector test harness is "
+        "planned for v0.2 (see docs/05_ROADMAP_STATUS.md). For now, use "
+        "`prow connector validate` for manifest/entry-point checks and "
+        "`prow connector dev --no-watch` for a one-shot run against your code.",
         err=True,
     )
     raise typer.Exit(code=1)

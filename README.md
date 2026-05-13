@@ -16,11 +16,14 @@ around three commitments:
 Prow CTI is the first product from [Prow](https://github.com/prow-sh),
 a company building open-source security infrastructure.
 
-> **Status: pre-alpha.** The repository scaffold is in place. No platform
-> code yet. The architecture is drafted, the connector SDK is specified,
-> and the first walking-skeleton connector (CISA KEV) is what we're
-> building against next. If you want to follow along, watch the repo —
-> the v0.1 milestone is where Prow CTI becomes something you can run.
+> **Status: pre-alpha.** The connector framework is in: a versioned
+> stdin/stdout JSON protocol, a subprocess supervisor with restart and
+> health policy, an in-process dev runtime with hot reload, and the
+> `prow connector dev` / `prow connector validate` CLI for connector
+> authors. Persistence, the HTTP API, the UI, and the first
+> walking-skeleton connector (CISA KEV) are next. If you want to follow
+> along, watch the repo — the v0.1 milestone is where Prow CTI becomes
+> something you can run end-to-end.
 
 ---
 
