@@ -33,12 +33,7 @@ Thumbs.db
 .env
 .env.local
 
-# Defensive: prevent accidental commits of Windows system paths.
-# These can sneak in if a tool runs `git add` with a path that
-# expands `%SystemDrive%` as a literal directory rather than the
-# Windows environment variable.
-%SystemDrive%/
-%SystemDrive%\
-ProgramData/
-ProgramData\
+# Windows cache DB blobs sometimes appear as stray paths; ignore by name only.
+# (Do not add literal %SystemDrive% or ProgramData\ lines here — they are not valid
+# gitignore syntax for pathspec/hatchling and break `pip install -e .` in CI.)
 *.ver0x*.db
