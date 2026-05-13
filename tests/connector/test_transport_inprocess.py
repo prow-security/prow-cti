@@ -85,6 +85,58 @@ async def test_log_invokes_structlog() -> None:
 
 
 @pytest.mark.asyncio
+async def test_state_handlers_override_dict() -> None:
+    async def emit_handler(bundle: dict[str, Any]) -> EmitAckPayload:
+        del bundle
+        return EmitAckPayload(accepted=0, duplicates=0, validation_failures=[])
+
+    store = {"k": "from-dict"}
+
+    async def state_get(_i: str, key: str) -> Any:
+        return "from-handler" if key == "k" else None
+
+    async def state_set(_i: str, key: str, value: Any) -> None:
+        del key, value
+
+    log = structlog.get_logger("test")
+    transport = InProcessTransport(
+        "ci-1",
+        emit_handler,
+        store,
+        log,
+        meter=None,
+        state_get_handler=state_get,
+        state_set_handler=state_set,
+    )
+    assert await transport.get_state("k") == "from-handler"
+    await transport.set_state("k", 99)
+    assert store.get("k") == "from-dict"
+
+
+@pytest.mark.asyncio
+async def test_state_handler_pair_must_both_be_set() -> None:
+    async def emit_handler(bundle: dict[str, Any]) -> EmitAckPayload:
+        del bundle
+        return EmitAckPayload(accepted=0, duplicates=0, validation_failures=[])
+
+    log = structlog.get_logger("test")
+
+    async def state_get(_i: str, _k: str) -> Any:
+        return None
+
+    with pytest.raises(ValueError, match="state_get_handler and state_set_handler"):
+        InProcessTransport(
+            "ci-1",
+            emit_handler,
+            {},
+            log,
+            meter=None,
+            state_get_handler=state_get,
+            state_set_handler=None,
+        )
+
+
+@pytest.mark.asyncio
 async def test_shutdown_sets_cancelled() -> None:
     async def emit_handler(bundle: dict[str, Any]) -> EmitAckPayload:
         del bundle

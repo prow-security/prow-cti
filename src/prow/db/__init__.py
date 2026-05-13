@@ -40,6 +40,7 @@ from prow.db.session import (
     dispose_engine,
     session_scope,
 )
+from prow.db.state_handler import create_db_state_getter, create_db_state_setter
 from prow.db.stix_fields import (
     extract_stix_persistence_fields,
     parse_stix_datetime,
@@ -59,6 +60,8 @@ __all__ = [
     "create_async_engine_from_settings",
     "create_async_sessionmaker",
     "create_db_emit_handler",
+    "create_db_state_getter",
+    "create_db_state_setter",
     "create_inprocess_db_emit_handler",
     "dispose_engine",
     "extract_stix_persistence_fields",

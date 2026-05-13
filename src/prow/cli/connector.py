@@ -38,7 +38,13 @@ from prow.connector.dev_packaging import (
     validate_config_against_schema,
     validate_manifest_shape,
 )
-from prow.connector.dev_runtime import EmitHandler, ReloadResult, prepare_dev_runtime
+from prow.connector.dev_runtime import (
+    EmitHandler,
+    ReloadResult,
+    StateGetHandler,
+    StateSetHandler,
+    prepare_dev_runtime,
+)
 from prow.connector.dev_watcher import DevWatcher
 from prow.connector.entry_point_resolve import (
     collect_secret_field_paths,
@@ -55,6 +61,7 @@ from prow.db.session import (
     create_async_sessionmaker,
     dispose_engine,
 )
+from prow.db.state_handler import create_db_state_getter, create_db_state_setter
 
 app = typer.Typer(no_args_is_help=True)
 
@@ -120,11 +127,14 @@ async def _async_dev(
 
     state_bag: dict[str, Any] = {}
 
-    async def state_get(_i: str, key: str) -> Any | None:
+    async def memory_state_get(_i: str, key: str) -> Any | None:
         return state_bag.get(key)
 
-    async def state_set(_i: str, key: str, value: Any) -> None:
+    async def memory_state_set(_i: str, key: str, value: Any) -> None:
         state_bag[key] = value
+
+    state_get: StateGetHandler = memory_state_get
+    state_set: StateSetHandler = memory_state_set
 
     log_fw = LogForwarder(
         instance_id,
@@ -149,9 +159,17 @@ async def _async_dev(
             raise typer.Exit(code=1)
         session_factory = create_async_sessionmaker(engine)
         emit = create_db_emit_handler(session_factory)
+        state_get = create_db_state_getter(
+            session_factory,
+            connector_instance_id=instance_id,
+        )
+        state_set = create_db_state_setter(
+            session_factory,
+            connector_instance_id=instance_id,
+        )
         typer.echo(
-            "[dev] Persisting emits to Postgres (ingest_stix_bundle). "
-            "State keys still use the in-memory dev store, not connector_state.\n",
+            "[dev] Persisting emits and connector state to Postgres "
+            "(ingest_stix_bundle, connector_state).\n",
             file=stderr,
         )
     else:

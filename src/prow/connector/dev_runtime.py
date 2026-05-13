@@ -234,6 +234,8 @@ class DevRuntime:
             meter=None,
             log_forwarder=self._log_forwarder,
             metric_forwarder=self._metric_forwarder,
+            state_get_handler=self._state_get,
+            state_set_handler=self._state_set,
         )
 
     async def _import_connector_class(self) -> type[ConnectorBase]:
