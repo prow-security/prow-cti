@@ -6,5 +6,7 @@ select = ["E", "F", "W", "I", "B", "UP", "N", "S", "RUF"]
 
 [lint.per-file-ignores]
 "tests/**/*.py" = ["S101"]
+"src/prow/cli/connector.py" = ["B008"]
+"tests/connector/test_cli_dev.py" = ["S603"]
 # Smoke test exercises side-effect imports; noqa F401 stays readable alongside RUF100.
 "tests/test_smoke.py" = ["I001", "RUF100"]

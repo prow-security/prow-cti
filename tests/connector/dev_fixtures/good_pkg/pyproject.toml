@@ -1,0 +1,6 @@
+[project]
+name = "good-pkg-dev-fixture"
+version = "0.0.0"
+
+[project.entry-points."prow.connectors"]
+good_pkg_fixture = "good_pkg.connector:GoodConnector"

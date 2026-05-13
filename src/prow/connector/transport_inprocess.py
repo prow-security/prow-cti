@@ -18,7 +18,8 @@ from __future__ import annotations
 
 import asyncio
 from collections.abc import Awaitable, Callable
-from typing import Any
+from datetime import UTC, datetime
+from typing import TYPE_CHECKING, Any
 
 import structlog
 from opentelemetry.metrics import Meter
@@ -28,7 +29,13 @@ from prow.connector.protocol.messages import (
     HealthAckPayload,
     HealthStatus,
     LogLevel,
+    LogPayload,
+    MetricPayload,
 )
+
+if TYPE_CHECKING:
+    from prow.connector.log_forwarder import LogForwarder
+    from prow.connector.metric_forwarder import MetricForwarder
 
 EmitHandler = Callable[[dict[str, Any]], Awaitable[EmitAckPayload]]
 
@@ -43,12 +50,17 @@ class InProcessTransport:
         state_store: dict[str, Any],
         logger: structlog.BoundLogger,
         meter: Meter | None = None,
+        *,
+        log_forwarder: LogForwarder | None = None,
+        metric_forwarder: MetricForwarder | None = None,
     ) -> None:
         self._connector_instance_id = connector_instance_id
         self._emit_handler = emit_handler
         self._state = state_store
         self._logger = logger
         self._meter = meter
+        self._log_forwarder = log_forwarder
+        self._metric_forwarder = metric_forwarder
         self._histograms: dict[tuple[str, str], Any] = {}
         self._cancelled_event = asyncio.Event()
 
@@ -82,6 +94,19 @@ class InProcessTransport:
         fields: dict[str, Any] | None = None,
         exception: str | None = None,
     ) -> None:
+        if self._log_forwarder is not None:
+            merged = dict(fields or {})
+            exc_text = merged.pop("exception", exception)
+            self._log_forwarder.forward(
+                LogPayload(
+                    level=level,
+                    message=message,
+                    timestamp=datetime.now(UTC),
+                    fields=merged,
+                    exception=exc_text if isinstance(exc_text, str) else exception,
+                ),
+            )
+            return
         payload = dict(fields or {})
         if exception is not None:
             payload["exception"] = exception
@@ -95,6 +120,17 @@ class InProcessTransport:
         unit: str | None = None,
         tags: dict[str, str] | None = None,
     ) -> None:
+        if self._metric_forwarder is not None:
+            self._metric_forwarder.forward(
+                MetricPayload(
+                    name=name,
+                    value=value,
+                    unit=unit,
+                    tags=dict(tags or {}),
+                    timestamp=datetime.now(UTC),
+                ),
+            )
+            return
         if self._meter is None:
             return
         attrs = {**(tags or {})}
