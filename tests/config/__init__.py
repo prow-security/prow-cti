@@ -11,11 +11,3 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
-"""Application settings via pydantic-settings."""
-
-from __future__ import annotations
-
-from prow.config.settings import Settings, clear_settings_cache, get_settings
-
-__all__ = ["Settings", "clear_settings_cache", "get_settings"]

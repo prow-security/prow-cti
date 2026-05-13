@@ -18,12 +18,12 @@ a company building open-source security infrastructure.
 
 > **Status: pre-alpha.** The connector framework is in: a versioned
 > stdin/stdout JSON protocol, a subprocess supervisor with restart and
-> health policy, an in-process dev runtime with hot reload, and the
-> `prow connector dev` / `prow connector validate` CLI for connector
-> authors. Persistence, the HTTP API, the UI, and the first
-> walking-skeleton connector (CISA KEV) are next. If you want to follow
-> along, watch the repo — the v0.1 milestone is where Prow CTI becomes
-> something you can run end-to-end.
+> health policy, an in-process dev runtime with hot reload, the
+> `prow connector dev` / `prow connector validate` CLI, and the CISA KEV
+> connector as the first real consumer. **Postgres schema (Alembic) for
+> the persister** is in — see `src/prow/db/migrations/` and `docs/design/persister.md`.
+> The persister implementation (emit → DB), the HTTP API, and the UI are
+> next. Watch the repo for the v0.1 milestone when Prow CTI runs end-to-end.
 
 ---
 

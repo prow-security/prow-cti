@@ -12,6 +12,55 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Persistence interfaces; SQLAlchemy and asyncpg implementations land later."""
+"""Postgres persistence layer (SQLAlchemy 2 async + Alembic)."""
 
-# NOTE(scaffold): OpenSearch (optional extra) is deferred with the persistence design.
+from __future__ import annotations
+
+from prow.db.config import DatabaseSettings, load_database_settings
+from prow.db.ingest import (
+    ingest_stix_bundle,
+    stix_validation_error_to_failures,
+    validate_and_partition_bundle,
+)
+from prow.db.models import Base, ConnectorStateRow, StixObjectRow
+from prow.db.repositories import (
+    ConnectorStateRepository,
+    SqlAlchemyConnectorStateRepository,
+    SqlAlchemyStixObjectRepository,
+    StixObjectRepository,
+)
+from prow.db.session import (
+    check_database,
+    create_async_engine_from_settings,
+    create_async_sessionmaker,
+    dispose_engine,
+    session_scope,
+)
+from prow.db.stix_fields import (
+    extract_stix_persistence_fields,
+    parse_stix_datetime,
+    relationship_triple_key,
+)
+
+__all__ = [
+    "Base",
+    "ConnectorStateRepository",
+    "ConnectorStateRow",
+    "DatabaseSettings",
+    "SqlAlchemyConnectorStateRepository",
+    "SqlAlchemyStixObjectRepository",
+    "StixObjectRepository",
+    "StixObjectRow",
+    "check_database",
+    "create_async_engine_from_settings",
+    "create_async_sessionmaker",
+    "dispose_engine",
+    "extract_stix_persistence_fields",
+    "ingest_stix_bundle",
+    "load_database_settings",
+    "parse_stix_datetime",
+    "relationship_triple_key",
+    "session_scope",
+    "stix_validation_error_to_failures",
+    "validate_and_partition_bundle",
+]

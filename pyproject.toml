@@ -58,11 +58,12 @@ secret_logger_test = "prow.connector.testing.secret_logger_pkg.connector:SecretL
 "cisa-kev" = "prow.connectors.kev:KevConnector"
 
 [tool.hatch.build.targets.sdist]
-include = ["src/prow", "README.md", "LICENSE", "NOTICE"]
+include = ["src/prow", "README.md", "LICENSE", "NOTICE", "alembic.ini"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 asyncio_mode = "auto"
 markers = [
     "slow: subprocess / integration tests that spawn real processes",
+    "integration: tests that require Postgres (DATABASE_URL or PROW_DATABASE_URL)",
 ]

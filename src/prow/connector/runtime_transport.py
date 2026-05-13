@@ -168,6 +168,14 @@ class ConnectorRuntimeTransport:
                 message=exc.message,
             )
             self._fatal_protocol_error = exc
+        except (BrokenPipeError, ConnectionResetError):
+            # Linux often surfaces RST/half-close as these; Windows tends to end the
+            # stream as EOF (handled in framing). Treat like a clean peer hangup:
+            # ``finally`` rejects pending runtime futures with ConnectorProcessExited.
+            logger.debug(
+                "connector.runtime.peer_hangup",
+                connector_instance_id=self._connector_instance_id,
+            )
         except Exception as exc:
             wrapped = ProtocolError(
                 ErrorCode.MALFORMED_MESSAGE,
