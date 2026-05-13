@@ -32,3 +32,8 @@ Thumbs.db
 # Environment (never commit secrets)
 .env
 .env.local
+
+# Windows cache DB blobs sometimes appear as stray paths; ignore by name only.
+# (Do not add literal %SystemDrive% or ProgramData\ lines here — they are not valid
+# gitignore syntax for pathspec/hatchling and break `pip install -e .` in CI.)
+*.ver0x*.db
