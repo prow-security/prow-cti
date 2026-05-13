@@ -1,0 +1,18 @@
+# Local Postgres 16 for migrations and integration tests.
+# Usage: docker compose -f docker-compose.postgres.yml up -d
+# DSN: postgresql+asyncpg://prow:prow@127.0.0.1:5432/prow
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: prow
+      POSTGRES_PASSWORD: prow
+      POSTGRES_DB: prow
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U prow -d prow"]
+      interval: 3s
+      timeout: 3s
+      retries: 10

@@ -58,7 +58,7 @@ secret_logger_test = "prow.connector.testing.secret_logger_pkg.connector:SecretL
 "cisa-kev" = "prow.connectors.kev:KevConnector"
 
 [tool.hatch.build.targets.sdist]
-include = ["src/prow", "README.md", "LICENSE", "NOTICE"]
+include = ["src/prow", "README.md", "LICENSE", "NOTICE", "migrations", "alembic.ini"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

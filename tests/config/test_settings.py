@@ -12,10 +12,20 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Application settings via pydantic-settings."""
-
 from __future__ import annotations
 
-from prow.config.settings import Settings, clear_settings_cache, get_settings
+import pytest
 
-__all__ = ["Settings", "clear_settings_cache", "get_settings"]
+from prow.config import Settings, clear_settings_cache, get_settings
+
+
+def test_settings_database_url_env_override(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("PROW_DATABASE_URL", "postgresql+asyncpg://x:y@db:5432/app")
+    clear_settings_cache()
+    try:
+        s = Settings()
+        assert s.database_url == "postgresql+asyncpg://x:y@db:5432/app"
+        assert get_settings().database_url == s.database_url
+    finally:
+        monkeypatch.delenv("PROW_DATABASE_URL", raising=False)
+        clear_settings_cache()
