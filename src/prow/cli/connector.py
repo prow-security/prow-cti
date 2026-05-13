@@ -38,7 +38,7 @@ from prow.connector.dev_packaging import (
     validate_config_against_schema,
     validate_manifest_shape,
 )
-from prow.connector.dev_runtime import ReloadResult, prepare_dev_runtime
+from prow.connector.dev_runtime import EmitHandler, ReloadResult, prepare_dev_runtime
 from prow.connector.dev_watcher import DevWatcher
 from prow.connector.entry_point_resolve import (
     collect_secret_field_paths,
@@ -47,6 +47,14 @@ from prow.connector.entry_point_resolve import (
 from prow.connector.log_forwarder import LogForwarder
 from prow.connector.metric_forwarder import MetricForwarder
 from prow.connector.protocol.messages import MetricPayload
+from prow.db.config import load_database_settings
+from prow.db.emit_handler import create_db_emit_handler
+from prow.db.session import (
+    check_database,
+    create_async_engine_from_settings,
+    create_async_sessionmaker,
+    dispose_engine,
+)
 
 app = typer.Typer(no_args_is_help=True)
 
@@ -72,6 +80,7 @@ async def _async_dev(
     config_file: Path | None,
     instance_id: str,
     no_watch: bool,
+    persist: bool,
     *,
     stdout: TextIO,
     stderr: TextIO,
@@ -109,7 +118,6 @@ async def _async_dev(
     entry_name, _entry_target = discover_default_entry_name(connector_path)
     secrets = collect_secret_field_paths(cfg_schema)
 
-    emit = DevEmitHandler(stream=stdout)
     state_bag: dict[str, Any] = {}
 
     async def state_get(_i: str, key: str) -> Any | None:
@@ -125,6 +133,29 @@ async def _async_dev(
         logger=structlog.get_logger("prow.connector"),
     )
     metric_fw = DevCliMetricForwarder(instance_id, entry_name)
+
+    engine = None
+    emit: EmitHandler
+    if persist:
+        settings = load_database_settings()
+        engine = create_async_engine_from_settings(settings)
+        if not await check_database(engine):
+            await dispose_engine(engine)
+            typer.echo(
+                "Could not reach Postgres with the current PROW_* database settings "
+                "(--persist). Fix PROW_DATABASE_URL / `.env` or omit --persist.",
+                err=True,
+            )
+            raise typer.Exit(code=1)
+        session_factory = create_async_sessionmaker(engine)
+        emit = create_db_emit_handler(session_factory)
+        typer.echo(
+            "[dev] Persisting emits to Postgres (ingest_stix_bundle). "
+            "State keys still use the in-memory dev store, not connector_state.\n",
+            file=stderr,
+        )
+    else:
+        emit = DevEmitHandler(stream=stdout)
 
     runtime = prepare_dev_runtime(
         connector_path,
@@ -154,20 +185,24 @@ async def _async_dev(
         result = await runtime.trigger_reload()
         _print_reload(result, stderr)
 
-    if not no_watch:
-        watcher = DevWatcher(connector_path, on_change)
-        await watcher.start()
-
-    await runtime.start()
-
     try:
-        await runtime.wait()
-    except asyncio.CancelledError:
-        raise
+        if not no_watch:
+            watcher = DevWatcher(connector_path, on_change)
+            await watcher.start()
+
+        await runtime.start()
+
+        try:
+            await runtime.wait()
+        except asyncio.CancelledError:
+            raise
+        finally:
+            await runtime.request_shutdown()
+            if watcher is not None:
+                await watcher.stop()
     finally:
-        await runtime.request_shutdown()
-        if watcher is not None:
-            await watcher.stop()
+        if engine is not None:
+            await dispose_engine(engine)
 
 
 def _print_reload(result: ReloadResult, stream: TextIO = sys.stderr) -> None:
@@ -192,6 +227,11 @@ def dev_command(
     ),
     instance_id: str = typer.Option("dev", help="Instance ID for log binding"),
     no_watch: bool = typer.Option(False, "--no-watch", help="Run once without hot-reload"),
+    persist: bool = typer.Option(
+        False,
+        "--persist",
+        help="Write emitted STIX bundles to Postgres (PROW_DATABASE_URL / .env)",
+    ),
 ) -> None:
     """Run a connector in-process with optional filesystem hot reload."""
 
@@ -201,6 +241,7 @@ def dev_command(
             config_file.resolve() if config_file else None,
             instance_id,
             no_watch,
+            persist,
             stdout=sys.stdout,
             stderr=sys.stderr,
         )
