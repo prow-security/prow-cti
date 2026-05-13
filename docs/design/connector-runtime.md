@@ -35,11 +35,11 @@ The runtime boundary is a small `ConnectorTransport` protocol, in the Python typ
 
 ## Subprocess lifecycle (production)
 
-**Spawn:** the supervisor starts each production connector instance as `python -c "from prow.connector.runner import main; main()"`. The connector identifier, instance identifier, and validated config are passed in one environment variable, `PROW_CONNECTOR_RUNNER_CONFIG`, encoded as JSON. Environment config keeps argv free of secrets in process listings on platforms where argv is easier to inspect. The runtime still redacts that variable from logs and crash reports.
+**Spawn:** the supervisor starts each production connector instance as `python -c "from prow.connector.runner import main; main()"`. The instance identifier and resolved entry-point name are passed in two environment variables, `PROW_CONNECTOR_INSTANCE_ID` and `PROW_CONNECTOR_ENTRY_POINT`. The validated `config` dict is **not** in the environment; it travels on the wire inside the `hello` payload after negotiation succeeds. This keeps argv and the environment free of secrets in process listings on platforms where either is easier to inspect, and reuses the protocol's own redaction-aware logging on the way in. The runtime still redacts the `hello` config from logs and crash reports.
 
-Stdin and stdout are pipes used only for the JSONL protocol. Stderr is a separate captured stream for tracebacks and dependency noise. The runner main reads the environment config, loads the connector class via the `prow.connectors` Python entry point group, instantiates it, builds the connector-side `ConnectorContext`, and enters the protocol loop.
+Stdin and stdout are pipes used only for the JSONL protocol. Stderr is a separate captured stream for tracebacks and dependency noise. The runner main reads the two environment variables, resolves the entry point, attaches stdio streams, performs the `hello` exchange to receive the config, validates the config against the manifest's `config_schema`, instantiates the connector class via the `prow.connectors` Python entry point group, builds the connector-side `ConnectorContext`, and enters the protocol loop.
 
-**Hello exchange:** immediately after spawn, the runtime writes `hello` with runtime version, supported protocol versions, connector identity, instance identity, and config. The connector responds with `hello-ack`, selecting one version. Mismatch is fatal: the runtime closes pipes, terminates the subprocess, logs supported and selected versions, and marks the instance failed. No operational messages are valid before `hello-ack`.
+**Hello exchange:** immediately after spawn, the runtime writes `hello` with runtime version, supported protocol versions, and the validated config. The connector responds with `hello-ack`, selecting one version. (Connector and instance identifiers are not part of the wire `hello`; they were already passed in the environment so the connector-side logger can bind them before the first frame is written.) Mismatch is fatal: the runtime closes pipes, terminates the subprocess, logs supported and selected versions, and marks the instance failed. No operational messages are valid before `hello-ack`.
 
 **Operational loop:** after `hello-ack`, runtime messages (`health`, `cancel`, `shutdown`) and connector messages (`emit`, `log`, `metric`, `set-state`, `get-state`) share the same stdout/stdin pair. Acks are matched to pending operations by `id_ref`. Connector-originated requests are dispatched to runtime services, and their acks are written back in order. Multiple acknowledged operations may be in flight up to the protocol limit. The transport preserves per-direction ordering but does not infer cross-direction ordering.
 
@@ -51,18 +51,29 @@ Stdin and stdout are pipes used only for the JSONL protocol. Stderr is a separat
 
 One supervisor instance lives under `prow.connector.runtime`. It owns the set of configured connector instances for the local runtime. Each instance record holds the subprocess handle, `StdioTransport`, `ConnectorContext`, pid, state, most recent restart timestamps, restart attempt count, current backoff, and last health result.
 
-The per-instance states are `starting`, `ready`, `running`, `draining`, `dead`, `crashed`, and `circuit-broken`.
+The per-instance states are `not_started`, `starting`, `ready`, `running`, `draining`, `dead`, `crashed`, and `circuit_broken`. `not_started` is the implicit entry state every instance record starts in before the supervisor invokes the first spawn; it exists so the canonical transition table in `prow.connector.supervisor_state` has a defined predecessor for the first `START_INVOKED` event without needing a magic null value.
 
 ```text
-starting → ready → running → draining → dead
-                         ↓
-                       crashed → starting (if restartable)
-                                → circuit-broken (if not)
+not_started → starting → ready → running → draining → dead
+                            ↘       ↘          ↓
+                              ──→ crashed ──→ starting (if restartable)
+                              ↘                ↘
+                                ─────→ dead    ──→ circuit_broken
+                                  (GRACEFUL_EXIT_WITHOUT_DRAIN)        ↓
+                                                   (CIRCUIT_CLEAR_RESTART)
+                                                                       ↓
+                                                                   starting
 ```
+
+In addition to the headline arrows above, the canonical transition table includes two shipped amendments that the original diagram did not show:
+
+- **`GRACEFUL_EXIT_WITHOUT_DRAIN` from `ready` or `running` directly to `dead`.** When a connector subprocess exits with code 0 between operations — for example a short-lived `external_import` that finishes `fetch()` and returns before the supervisor has requested shutdown — the supervisor recognises the exit as graceful and short-circuits the `draining` state. This avoids the supervisor pretending it sent a `shutdown` it never sent, and keeps `draining`'s meaning ("an explicit shutdown handshake is in flight") honest.
+
+- **`RESTART_ABORT_TO_DEAD` from `crashed` to `dead`.** When the supervisor decides during a crashed-state evaluation that a restart should not be attempted at all (for example because the instance is shutting down concurrently with the crash, or its policy has been replaced), the instance terminates rather than spinning into a fresh `starting`. This is distinct from `CIRCUIT_BREAK_RECORDED → circuit_broken`, which is the recoverable "too many restarts in the window" case.
 
 `starting` begins at spawn and lasts through protocol negotiation. A successful `hello-ack` moves to `ready`. `ready` means the subprocess is alive, protocol-compatible, and waiting for scheduled work. `running` means a connector operation such as `fetch()` or `enrich()` is in flight. The scheduler decides when to enter `running`; the supervisor tracks it so health and cancellation have the right target.
 
-`draining` begins when shutdown is requested, either by runtime stop, config reload, or restart. A graceful `shutdown-ack` and process exit move to `dead`. Unexpected process exit from any active state moves to `crashed`. From `crashed`, the restart policy either schedules a new `starting` attempt after backoff or moves to `circuit-broken`.
+`draining` begins when shutdown is requested, either by runtime stop, config reload, or restart. A graceful `shutdown-ack` and process exit move to `dead`. A graceful process exit *without* an in-flight shutdown handshake also moves directly to `dead` via `GRACEFUL_EXIT_WITHOUT_DRAIN`. Unexpected process exit from any active state moves to `crashed`. From `crashed`, the restart policy either schedules a new `starting` attempt after backoff, moves to `circuit_broken`, or aborts the instance to `dead` via `RESTART_ABORT_TO_DEAD`.
 
 Health probes run every 30 seconds for each `ready` or `running` instance. A probe sends `health` and expects `health-ack` within 5 seconds. Two consecutive health failures, whether timeout, malformed ack, or `status: "unhealthy"`, trigger restart. A single `degraded` health result is recorded and exposed but does not restart by itself.
 
@@ -72,7 +83,7 @@ Restarts use exponential backoff: 1s, 2s, 4s, 8s, then a 30s ceiling for subsequ
 
 The circuit-break threshold is three restarts inside a five-minute rolling window. Precisely: after recording a restart timestamp, the supervisor looks at restart timestamps newer than `now - 5 minutes`; if there are three or more, the next crash or failed start moves the instance to `circuit-broken` instead of scheduling another spawn.
 
-Circuit-broken means the supervisor stops trying automatically. The connector instance is marked unavailable in runtime status, surfaced through the connector status API, and excluded from scheduled runs. The manifest's packaged `status` field is not rewritten; instance status is operational state, not connector catalog metadata. An operator must call `POST /connectors/{id}/clear-circuit-break` or use the equivalent CLI command to reset attempts and return to `starting`.
+Circuit-broken means the supervisor stops trying automatically. The connector instance is marked unavailable in runtime status, surfaced through the connector status API, and excluded from scheduled runs. The manifest's packaged `status` field is not rewritten; instance status is operational state, not connector catalog metadata. An operator must call `Supervisor.clear_circuit_break(...)` to reset attempts and re-enter `starting`. The intended HTTP surface (`POST /connectors/{id}/clear-circuit-break`) is forward-looking; `prow.api` has no shipped code in v0.1, so the Python entrypoint is the operator-facing recovery path today.
 
 Supervisor metrics include restart count, time since last restart, current state, current backoff delay, consecutive health failures, and circuit-break count. The principle is automatic recovery up to a sane limit, then a clear human action. Prow must not spin forever on a broken connector.
 
@@ -108,7 +119,7 @@ Connector authors should keep connector modules boring: no global mutable caches
 
 ## Configuration loading and validation
 
-On supervisor startup, prow reads configured connector instances from the main application config. Each instance points to a discovered connector entry point and carries a per-instance config dict. The runtime loads the connector's `manifest.yaml`, validates the config dict against `config_schema`, and rejects only the invalid instance. Other connector instances continue starting.
+On supervisor startup, prow reads configured connector instances from the main application config. Each instance points to a discovered connector entry point and carries a per-instance config dict. The runtime loads the connector's manifest — `manifest.json` is the default and only required parser; `manifest.yaml` is also accepted but requires PyYAML, which is not a project dependency — validates the config dict against `config_schema`, and rejects only the invalid instance. Other connector instances continue starting.
 
 Validation failures include connector ID, instance ID, schema path, and human-readable failure text. Secret fields marked with `secret: true` in the manifest are redacted from logs, metrics, `hello` diagnostics, and crash dumps.
 
@@ -130,13 +141,12 @@ The runtime can later mitigate idle RSS by stopping instances after long inactiv
 
 ## Conflicts with the existing SDK doc
 
-The SDK doc's `ConnectorContext` definition lists fields and methods but does not explain that `ctx.http()` and `ctx.files()` are framework-provided helpers that must behave consistently across dev and production. The doc should clarify which helpers are local wrappers and which operations cross the transport boundary.
+The Pass D stabilisation pass amended `docs/02_CONNECTOR_SDK.md` to align it with what's actually shipped:
 
-The "Local development loop" section already describes `prow connector dev` at the right level for authors, but it should reference this note for the reload mechanism and its caveats.
-
-The "What connectors must NOT do" list remains correct, but should add: do not assume the connector is in the same process as prow. In production it is not; in dev it is. Connector code must work in both modes.
-
-Recommendation: amend `docs/02_CONNECTOR_SDK.md` in one follow-up PR after both connector design notes are accepted, so SDK-facing language changes coherently.
+- `ctx.http()` and `ctx.files()` are explicitly marked as deferred to v0.2+, and connector authors are told to instantiate their own `httpx.AsyncClient` for now.
+- `fetch(self)` (no `ctx` argument) and `ConnectorContext` field set are documented to match the shipped implementation.
+- The reload mechanism's caveats are now linked from the SDK doc's "Local development loop" section back to this note.
+- The "What connectors must NOT do" list now reminds authors that connectors run in different processes in production vs. dev.
 
 ## LOC estimate revision
 

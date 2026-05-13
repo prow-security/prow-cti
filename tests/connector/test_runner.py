@@ -18,6 +18,7 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 from typing import Any
 
 import pytest
@@ -56,25 +57,33 @@ async def test_runner_main_hello_emit_shutdown(
         store[key] = value
 
     async def runtime_peer(reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
-        protocol_version = await perform_hello_runtime(
-            reader,
-            writer,
-            "0.0.0",
-            {"token": "secret"},
-        )
-        rt = ConnectorRuntimeTransport(
-            "runner-inproc",
-            reader,
-            writer,
-            protocol_version,
-            emit_handler,
-            get_handler,
-            set_handler,
-        )
-        await rt.start()
-        await asyncio.sleep(0.15)
-        await rt.request_shutdown(grace_period_seconds=30)
-        await rt.wait_dispatch_finished()
+        try:
+            protocol_version = await perform_hello_runtime(
+                reader,
+                writer,
+                "0.0.0",
+                {"token": "secret"},
+            )
+            rt = ConnectorRuntimeTransport(
+                "runner-inproc",
+                reader,
+                writer,
+                protocol_version,
+                emit_handler,
+                get_handler,
+                set_handler,
+            )
+            await rt.start()
+            await asyncio.sleep(0.15)
+            await rt.request_shutdown(grace_period_seconds=30)
+            await rt.wait_dispatch_finished()
+        finally:
+            # Close the server-side writer so Server.wait_closed() can resolve.
+            # The writer may already be closed by the time we get here, so the
+            # close itself is best-effort.
+            with contextlib.suppress(Exception):
+                writer.close()
+                await writer.wait_closed()
 
     server = await asyncio.start_server(runtime_peer, "127.0.0.1", 0)
     port = server.sockets[0].getsockname()[1]
@@ -97,4 +106,4 @@ async def test_runner_main_hello_emit_shutdown(
     client_writer.close()
     await client_writer.wait_closed()
     server.close()
-    await server.wait_closed()
+    await asyncio.wait_for(server.wait_closed(), timeout=5.0)

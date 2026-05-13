@@ -145,9 +145,13 @@ async def test_runtime_negotiation_times_out_when_connector_never_responds() -> 
         reader: asyncio.StreamReader,
         writer: asyncio.StreamWriter,
     ) -> None:
-        await reader.read(1)
-        writer.close()
-        await writer.wait_closed()
+        # Stay open so the runtime hits its negotiation timeout rather than
+        # racing the connector's stream close (which surfaces as a generic
+        # ProtocolError "stream closed", not NegotiationTimeoutError).
+        try:
+            await asyncio.sleep(1.0)
+        except asyncio.CancelledError:
+            return
 
     async def runtime(
         reader: asyncio.StreamReader,
