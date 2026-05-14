@@ -32,6 +32,11 @@ from prow.db.session import (
     dispose_engine,
 )
 
+# Module-scoped AsyncEngine must share one event loop for all tests in this file.
+# Default (function-scoped) loop closes after each test; reusing the engine then
+# breaks asyncpg on Windows (closed loop, "another operation is in progress").
+pytestmark = pytest.mark.asyncio(loop_scope="module")
+
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
 
@@ -57,7 +62,7 @@ def _run_alembic_upgrade(url: str) -> None:
     assert proc.returncode == 0, f"alembic upgrade failed: {proc.stderr}"
 
 
-@pytest_asyncio.fixture(scope="module")
+@pytest_asyncio.fixture(scope="module", loop_scope="module")
 async def pg_engine():
     url = _integration_database_url()
     if not url:
@@ -77,12 +82,12 @@ async def pg_engine():
     await dispose_engine(engine)
 
 
-@pytest_asyncio.fixture
+@pytest_asyncio.fixture(scope="function", loop_scope="module")
 async def session_factory(pg_engine):
     return create_async_sessionmaker(pg_engine)
 
 
-@pytest_asyncio.fixture(autouse=True)
+@pytest_asyncio.fixture(autouse=True, scope="function", loop_scope="module")
 async def truncate_tables(pg_engine):
     async with pg_engine.begin() as conn:
         await conn.execute(

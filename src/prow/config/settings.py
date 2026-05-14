@@ -32,7 +32,7 @@ class Settings(BaseSettings):
     )
 
     database_url: str = Field(
-        default="postgresql+asyncpg://prow:prow@127.0.0.1:5432/prow",
+        default="postgresql+asyncpg://prow:prow@127.0.0.1:5433/prow",
         description="Async SQLAlchemy DSN for Postgres (asyncpg driver).",
     )
     database_pool_size: int = Field(default=10, ge=1, le=100)

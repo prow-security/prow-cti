@@ -274,7 +274,7 @@ Extend `prow.config` (currently scaffolded) with Pydantic settings fields:
 
 | Field | Purpose |
 |-------|---------|
-| `database_url` | Async DSN, e.g. `postgresql+asyncpg://prow:prow@localhost:5432/prow` locally. |
+| `database_url` | Async DSN, e.g. `postgresql+asyncpg://prow:prow@localhost:5433/prow` when using `docker-compose.postgres.yml` (host port 5433). |
 | `database_pool_size` | Default `10`. |
 | `database_pool_max_overflow` | Default `5`. |
 | `database_pool_timeout_seconds` | Default `30`. |
