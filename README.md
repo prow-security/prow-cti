@@ -21,7 +21,7 @@ a company building open-source security infrastructure.
 > health policy, an in-process dev runtime with hot reload, the
 > `prow connector dev` / `prow connector validate` CLI, and the CISA KEV
 > connector as the first real consumer. **Postgres schema (Alembic) for
-> the persister** is in — see `migrations/` and `docs/design/persister.md`.
+> the persister** is in — see `src/prow/db/migrations/` and `docs/design/persister.md`.
 > The persister implementation (emit → DB), the HTTP API, and the UI are
 > next. Watch the repo for the v0.1 milestone when Prow CTI runs end-to-end.
 

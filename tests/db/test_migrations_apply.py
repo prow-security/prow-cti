@@ -26,6 +26,14 @@ from alembic.script import ScriptDirectory
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
 
+def _integration_database_url() -> str | None:
+    return (
+        os.environ.get("DATABASE_URL")
+        or os.environ.get("PROW_DATABASE_URL")
+        or os.environ.get("PROW_TEST_DATABASE_URL")
+    )
+
+
 def test_initial_revision_is_single_head() -> None:
     cfg = Config(str(REPO_ROOT / "alembic.ini"))
     script = ScriptDirectory.from_config(cfg)
@@ -33,13 +41,16 @@ def test_initial_revision_is_single_head() -> None:
     assert heads == ["20260513_0001"]
 
 
+@pytest.mark.integration
 @pytest.mark.skipif(
-    not os.environ.get("PROW_TEST_DATABASE_URL"),
-    reason="Set PROW_TEST_DATABASE_URL to run migration integration (see .env.example).",
+    not _integration_database_url(),
+    reason=(
+        "Set DATABASE_URL, PROW_DATABASE_URL, or PROW_TEST_DATABASE_URL for Postgres integration."
+    ),
 )
 def test_alembic_upgrade_and_downgrade() -> None:
     env = os.environ.copy()
-    env["PROW_DATABASE_URL"] = os.environ["PROW_TEST_DATABASE_URL"]
+    env["PROW_DATABASE_URL"] = _integration_database_url()  # type: ignore[index]
 
     def _run(args: list[str]) -> subprocess.CompletedProcess[str]:
         return subprocess.run(  # noqa: S603
