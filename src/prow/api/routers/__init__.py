@@ -12,8 +12,4 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""REST API for prow."""
-
-from prow.api.app import app
-
-__all__ = ["app"]
+"""API routers."""
