@@ -17,6 +17,10 @@
 from __future__ import annotations
 
 from prow.db.config import DatabaseSettings, load_database_settings
+from prow.db.emit_handler import (
+    create_db_emit_handler,
+    create_inprocess_db_emit_handler,
+)
 from prow.db.ingest import (
     ingest_stix_bundle,
     stix_validation_error_to_failures,
@@ -54,6 +58,8 @@ __all__ = [
     "check_database",
     "create_async_engine_from_settings",
     "create_async_sessionmaker",
+    "create_db_emit_handler",
+    "create_inprocess_db_emit_handler",
     "dispose_engine",
     "extract_stix_persistence_fields",
     "ingest_stix_bundle",
