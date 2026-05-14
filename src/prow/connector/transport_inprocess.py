@@ -38,6 +38,8 @@ if TYPE_CHECKING:
     from prow.connector.metric_forwarder import MetricForwarder
 
 EmitHandler = Callable[[dict[str, Any]], Awaitable[EmitAckPayload]]
+StateGetHandler = Callable[[str, str], Awaitable[Any | None]]
+StateSetHandler = Callable[[str, str, Any], Awaitable[None]]
 
 
 class InProcessTransport:
@@ -53,10 +55,17 @@ class InProcessTransport:
         *,
         log_forwarder: LogForwarder | None = None,
         metric_forwarder: MetricForwarder | None = None,
+        state_get_handler: StateGetHandler | None = None,
+        state_set_handler: StateSetHandler | None = None,
     ) -> None:
+        if (state_get_handler is None) ^ (state_set_handler is None):
+            msg = "state_get_handler and state_set_handler must both be set or both be omitted"
+            raise ValueError(msg)
         self._connector_instance_id = connector_instance_id
         self._emit_handler = emit_handler
         self._state = state_store
+        self._state_get_handler = state_get_handler
+        self._state_set_handler = state_set_handler
         self._logger = logger
         self._meter = meter
         self._log_forwarder = log_forwarder
@@ -82,9 +91,14 @@ class InProcessTransport:
         return await self._emit_handler(bundle)
 
     async def set_state(self, key: str, value: Any) -> None:
+        if self._state_set_handler is not None:
+            await self._state_set_handler(self._connector_instance_id, key, value)
+            return
         self._state[key] = value
 
     async def get_state(self, key: str) -> Any | None:
+        if self._state_get_handler is not None:
+            return await self._state_get_handler(self._connector_instance_id, key)
         return self._state.get(key)
 
     async def log(
