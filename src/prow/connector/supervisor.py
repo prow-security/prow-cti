@@ -176,13 +176,21 @@ class Supervisor:
         except asyncio.CancelledError:
             return
 
+    async def start_health_probes(self) -> None:
+        """Start the periodic health probe loop (idempotent)."""
+
+        if self._health_probe_interval_seconds is None:
+            return
+        if self._health_task is not None and not self._health_task.done():
+            return
+        self._health_task = asyncio.create_task(
+            self._health_probe_loop(),
+            name="connector-supervisor-health",
+        )
+
     async def __aenter__(self) -> Supervisor:
         await self.start_all()
-        if self._health_probe_interval_seconds is not None:
-            self._health_task = asyncio.create_task(
-                self._health_probe_loop(),
-                name="connector-supervisor-health",
-            )
+        await self.start_health_probes()
         return self
 
     async def __aexit__(

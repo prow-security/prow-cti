@@ -34,13 +34,15 @@ cd prow-cti
 docker compose up
 ```
 
-Wait ~30 seconds for Postgres to initialize and KEV to ingest
-(~1,600 CVEs). Then open http://localhost:8000.
+Wait for Postgres to initialize. On first boot with an empty database,
+CISA KEV ingests once if `cisa-kev` is enabled in config (the default).
+Subsequent updates run on the scheduler interval (`6h` in `prow.yml.example`).
+Expect KEV data within the first schedule window after startup if you
+skip first-boot ingest by pre-seeding the database.
 
-To skip the automatic KEV import:
-```bash
-PROW_SKIP_KEV_IMPORT=true docker compose up
-```
+To disable KEV, copy `prow.yml.example` to `prow.yml` and set
+`enabled: false` on the `cisa-kev` entry, or mount that file into the
+container. Then open http://localhost:8000.
 
 For production deployments, set `POSTGRES_PASSWORD` (and other
 secrets) from a secrets manager — the default `prow` password in

@@ -94,8 +94,8 @@ def secret_field_paths_for_entry_point(entry_point_name: str) -> frozenset[str]:
     return collect_secret_field_paths(schema)
 
 
-def load_manifest_config_schema(ep: EntryPoint) -> dict[str, Any]:
-    """Load ``manifest.json`` config_schema adjacent to the connector module."""
+def load_manifest_document_for_entry_point(ep: EntryPoint) -> dict[str, Any]:
+    """Load ``manifest.json`` adjacent to the connector module."""
 
     module = import_module(ep.module)
     if module.__file__ is None:
@@ -107,6 +107,15 @@ def load_manifest_config_schema(ep: EntryPoint) -> dict[str, Any]:
             f"manifest.json not found next to connector module ({manifest_path}).",
         )
     data = json.loads(manifest_path.read_text(encoding="utf-8"))
+    if not isinstance(data, dict):
+        raise ValueError("manifest.json root must be a JSON object.")
+    return data
+
+
+def load_manifest_config_schema(ep: EntryPoint) -> dict[str, Any]:
+    """Load ``manifest.json`` config_schema adjacent to the connector module."""
+
+    data = load_manifest_document_for_entry_point(ep)
     raw_schema = data.get("config_schema")
     if raw_schema is None:
         raise ValueError("manifest.json must contain a config_schema object.")

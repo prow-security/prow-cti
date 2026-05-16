@@ -175,6 +175,62 @@ class ConnectorInstance:
 
         await self._spawn_process_body()
 
+    async def run_fetch(self) -> None:
+        """Start a fetch cycle (spawn subprocess when ``not_started`` or ``dead``)."""
+
+        async with self._lock:
+            if self._state == ConnectorState.CIRCUIT_BROKEN:
+                return
+            needs_shutdown = self._state in (
+                ConnectorState.READY,
+                ConnectorState.RUNNING,
+                ConnectorState.STARTING,
+                ConnectorState.DRAINING,
+            )
+            should_start = self._state in (ConnectorState.NOT_STARTED, ConnectorState.DEAD)
+
+        if needs_shutdown:
+            await self.request_shutdown()
+            await self.join_background_tasks()
+            should_start = True
+
+        if should_start:
+            async with self._lock:
+                if self._state in (ConnectorState.NOT_STARTED, ConnectorState.DEAD):
+                    pass
+                else:
+                    should_start = False
+            if should_start:
+                await self.start()
+
+    async def wait_until_idle(
+        self,
+        *,
+        timeout_seconds: float | None = None,
+        poll_interval_seconds: float = 0.05,
+    ) -> None:
+        """Wait until the instance is idle after a fetch cycle (typically ``dead``)."""
+
+        deadline: float | None = None
+        if timeout_seconds is not None:
+            loop = asyncio.get_running_loop()
+            deadline = loop.time() + timeout_seconds
+
+        while True:
+            state = self._state
+            if state in (
+                ConnectorState.DEAD,
+                ConnectorState.CIRCUIT_BROKEN,
+                ConnectorState.NOT_STARTED,
+            ):
+                return
+            if deadline is not None:
+                loop = asyncio.get_running_loop()
+                if loop.time() >= deadline:
+                    msg = f"timed out waiting for {self.instance_id!r} to become idle"
+                    raise TimeoutError(msg)
+            await self._sleep_fn(poll_interval_seconds)
+
     async def _watcher_loop(self, proc: ConnectorProcess) -> None:
         try:
             reason = await proc.wait()

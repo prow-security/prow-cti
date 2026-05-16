@@ -25,8 +25,11 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
+from prow import __version__
 from prow.api import deps
+from prow.api.connector_startup import build_supervisor_and_scheduler, configure_logging
 from prow.api.routers import connectors, health, ingest, stix
+from prow.config import load_config
 from prow.db.config import load_database_settings
 from prow.db.session import create_async_engine_from_settings, create_async_sessionmaker
 
@@ -34,18 +37,29 @@ from prow.db.session import create_async_engine_from_settings, create_async_sess
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """Application lifespan events."""
-    # Initialize DB engine and session factory
-    settings = load_database_settings()
-    engine = create_async_engine_from_settings(settings)
+    prow_config = load_config()
+    configure_logging(prow_config.log.level)
+
+    db_settings = load_database_settings()
+    engine = create_async_engine_from_settings(db_settings)
     session_factory = create_async_sessionmaker(engine)
     deps._session_factory = session_factory
 
-    # We don't initialize the supervisor here because it's managed by the CLI/runner
-    # The CLI will inject the supervisor instance into deps._supervisor before starting the API
+    supervisor, scheduler = build_supervisor_and_scheduler(
+        prow_config,
+        session_factory,
+        runtime_version=__version__,
+    )
+    deps._supervisor = supervisor
+
+    await supervisor.start_health_probes()
+    await scheduler.start()
 
     yield
 
-    # Cleanup
+    await scheduler.stop()
+    await supervisor.shutdown_all()
+    deps._supervisor = None
     await engine.dispose()
 
 
@@ -57,7 +71,6 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# CORS middleware for UI
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -66,7 +79,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Register routers
 app.include_router(health.router)
 app.include_router(stix.router)
 app.include_router(connectors.router)
@@ -97,7 +109,6 @@ def _mount_ui() -> None:
 
     @app.get("/{spa_path:path}", include_in_schema=False)
     async def spa_fallback(_spa_path: str) -> FileResponse:
-        # Vite emits assets under /assets; all other client routes use index.html.
         return FileResponse(_INDEX_HTML)
 
 
