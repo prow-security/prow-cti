@@ -12,10 +12,28 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Application settings via pydantic-settings."""
+"""Application configuration (YAML + env) and legacy pydantic-settings."""
 
 from __future__ import annotations
 
+from prow.config.loader import load_config
+from prow.config.schema import (
+    ApiConfig,
+    ConnectorInstanceConfig,
+    DatabaseConfig,
+    LogConfig,
+    ProwConfig,
+)
 from prow.config.settings import Settings, clear_settings_cache, get_settings
 
-__all__ = ["Settings", "clear_settings_cache", "get_settings"]
+__all__ = [
+    "ApiConfig",
+    "ConnectorInstanceConfig",
+    "DatabaseConfig",
+    "LogConfig",
+    "ProwConfig",
+    "Settings",
+    "clear_settings_cache",
+    "get_settings",
+    "load_config",
+]

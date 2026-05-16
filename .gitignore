@@ -35,6 +35,9 @@ Thumbs.db
 .env
 .env.local
 
+# Local prow configuration (use prow.yml.example as template)
+prow.yml
+
 # Windows cache DB blobs sometimes appear as stray paths; ignore by name only.
 # (Do not add literal %SystemDrive% or ProgramData\ lines here — they are not valid
 # gitignore syntax for pathspec/hatchling and break `pip install -e .` in CI.)

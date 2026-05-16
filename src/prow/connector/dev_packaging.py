@@ -57,7 +57,7 @@ def load_manifest_document(path: Path) -> dict[str, Any]:
         data = json.loads(text)
     elif path.suffix.lower() in {".yaml", ".yml"}:
         try:
-            import yaml  # type: ignore[import-untyped]
+            import yaml
         except ImportError as exc:
             raise ConnectorPackageError(
                 "Install PyYAML to load manifest.yaml files, or use manifest.json.",
