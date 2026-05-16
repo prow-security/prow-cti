@@ -1,0 +1,32 @@
+{
+  "query_status": "ok",
+  "urls": [
+    {
+      "id": "3000817",
+      "url": "hxxps://example-malicious[.]com/payload.exe",
+      "url_status": "online",
+      "date_added": "2024-03-15 10:23:00 UTC",
+      "threat": "malware_download",
+      "tags": ["emotet", "botnet"],
+      "urlhaus_reference": "https://urlhaus.abuse.ch/url/3000817/"
+    },
+    {
+      "id": "3000818",
+      "url": "hxxp://c2.evil-domain[.]net/gate.php",
+      "url_status": "online",
+      "date_added": "2024-03-14 08:11:42 UTC",
+      "threat": "malware_download",
+      "tags": ["cobalt_strike"],
+      "urlhaus_reference": "https://urlhaus.abuse.ch/url/3000818/"
+    },
+    {
+      "id": "3000819",
+      "url": "https://clean-looking-host.example/path",
+      "url_status": "offline",
+      "date_added": "2024-03-13 19:05:33 UTC",
+      "threat": "malware_download",
+      "tags": ["trickbot"],
+      "urlhaus_reference": "https://urlhaus.abuse.ch/url/3000819/"
+    }
+  ]
+}

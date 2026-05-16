@@ -1,0 +1,12 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "prow-connector-attack"
+version = "0.1.0"
+description = "MITRE ATT&CK connector for prow"
+requires-python = ">=3.12"
+
+[project.entry-points."prow.connectors"]
+"mitre-attack" = "prow.connectors.attack:AttackConnector"
