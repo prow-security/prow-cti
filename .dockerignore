@@ -1,0 +1,31 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+dist/
+*.egg-info/
+.venv/
+venv/
+
+# UI
+ui/node_modules/
+ui/dist/
+src/prow/api/static/
+
+# Git
+.git/
+.gitignore
+
+# Tests
+tests/
+
+# Docs
+docs/
+
+# Dev config
+.env*
+docker-compose.postgres.yml
+*.log

@@ -25,6 +25,26 @@ a company building open-source security infrastructure.
 > The persister implementation (emit → DB), the HTTP API, and the UI are
 > next. Watch the repo for the v0.1 milestone when Prow CTI runs end-to-end.
 
+## Quickstart
+
+```bash
+git clone https://github.com/prow-security/prow-cti
+cd prow-cti
+docker compose up
+```
+
+Wait ~30 seconds for Postgres to initialize and KEV to ingest
+(~1,600 CVEs). Then open http://localhost:8000.
+
+To skip the automatic KEV import:
+```bash
+PROW_SKIP_KEV_IMPORT=true docker compose up
+```
+
+For production deployments, set `POSTGRES_PASSWORD` (and other
+secrets) from a secrets manager — the default `prow` password in
+`docker-compose.yml` is for local development only.
+
 ---
 
 ## Why another threat intel platform
