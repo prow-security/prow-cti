@@ -93,7 +93,12 @@ def _mount_ui() -> None:
     @app.get("/{spa_path:path}", include_in_schema=False)
     async def spa_fallback(spa_path: str) -> FileResponse:
         if spa_path:
-            candidate = _STATIC_DIR / spa_path
+            static_root = _STATIC_DIR.resolve()
+            candidate = (static_root / spa_path).resolve()
+            try:
+                candidate.relative_to(static_root)
+            except ValueError:
+                return FileResponse(static_root / "index.html")
             if candidate.is_file():
                 return FileResponse(candidate)
         return FileResponse(_STATIC_DIR / "index.html")
