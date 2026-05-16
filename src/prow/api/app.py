@@ -75,6 +75,23 @@ app.include_router(ingest.router)
 _STATIC_DIR = Path(__file__).resolve().parent / "static"
 
 
+def _resolve_static_file(spa_path: str) -> Path | None:
+    """Resolve a user-supplied SPA path to a safe file under the static root."""
+    if not spa_path:
+        return None
+
+    static_root = _STATIC_DIR.resolve()
+    candidate = (static_root / spa_path).resolve()
+    try:
+        candidate.relative_to(static_root)
+    except ValueError:
+        return None
+
+    if not candidate.is_file():
+        return None
+    return candidate
+
+
 def _mount_ui() -> None:
     if not _STATIC_DIR.is_dir():
         return
@@ -92,15 +109,9 @@ def _mount_ui() -> None:
 
     @app.get("/{spa_path:path}", include_in_schema=False)
     async def spa_fallback(spa_path: str) -> FileResponse:
-        if spa_path:
-            static_root = _STATIC_DIR.resolve()
-            candidate = (static_root / spa_path).resolve()
-            try:
-                candidate.relative_to(static_root)
-            except ValueError:
-                return FileResponse(_STATIC_DIR / "index.html")
-            if candidate.is_file():
-                return FileResponse(str(candidate))
+        candidate = _resolve_static_file(spa_path)
+        if candidate is not None:
+            return FileResponse(candidate)
         return FileResponse(_STATIC_DIR / "index.html")
 
 
