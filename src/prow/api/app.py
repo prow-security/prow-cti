@@ -79,8 +79,15 @@ def _resolve_static_file(spa_path: str) -> Path | None:
     if not spa_path:
         return None
 
-    requested_path = Path(spa_path)
-    if requested_path.is_absolute() or ".." in requested_path.parts:
+    # Normalize separators and force a relative path form.
+    normalized_path = spa_path.replace("\\", "/").lstrip("/")
+    requested_path = Path(normalized_path)
+    if (
+        not normalized_path
+        or requested_path == Path(".")
+        or requested_path.is_absolute()
+        or ".." in requested_path.parts
+    ):
         return None
 
     static_root = _STATIC_DIR.resolve()
