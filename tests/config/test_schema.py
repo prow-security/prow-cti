@@ -55,6 +55,23 @@ def test_builtin_defaults_schedules() -> None:
     assert by_name["malwarebazaar"].schedule == "6h"
 
 
+def test_builtin_defaults_enabled_flags() -> None:
+    cfg = _builtin_defaults()
+    by_name = {c.name: c for c in cfg.connectors}
+    assert by_name["cisa-kev"].enabled is True
+    assert by_name["mitre-attack"].enabled is True
+    assert by_name["urlhaus"].enabled is False
+    assert by_name["threatfox"].enabled is False
+    assert by_name["malwarebazaar"].enabled is False
+
+
+def test_builtin_defaults_mitre_attack_allows_custom_types() -> None:
+    cfg = _builtin_defaults()
+    by_name = {c.name: c for c in cfg.connectors}
+    assert by_name["mitre-attack"].allow_custom_types is True
+    assert by_name["cisa-kev"].allow_custom_types is False
+
+
 def test_connector_instance_derives_id_from_index() -> None:
     cfg = ProwConfig(
         connectors=[

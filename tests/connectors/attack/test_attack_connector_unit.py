@@ -25,6 +25,7 @@ import pytest
 import structlog
 
 from prow.connector.context import ConnectorContext
+from prow.connector.dev_emit import DevEmitHandler
 from prow.connector.protocol.messages import EmitAckPayload
 from prow.connector.transport_inprocess import InProcessTransport
 from prow.connectors.attack.connector import (
@@ -35,8 +36,8 @@ from prow.connectors.attack.connector import (
 
 _FIXTURE_PATH = Path(__file__).resolve().parent / "fixtures" / "attack_sample.json"
 _FIXTURE_BODY = _FIXTURE_PATH.read_bytes()
-# Six non-deprecated course-of-action objects from the MITRE bundle sample.
-_EXPECTED_OBJECTS = 6
+# Six course-of-action plus two x-mitre-* custom types from the MITRE bundle sample.
+_EXPECTED_OBJECTS = 8
 
 
 def _make_mock_transport(
@@ -96,7 +97,8 @@ async def test_fetch_emits_validated_objects_and_state() -> None:
     assert len(captured) == 1
     objs = captured[0]["objects"]
     assert len(objs) == _EXPECTED_OBJECTS
-    assert all(o["type"] == "course-of-action" for o in objs)
+    types = {o["type"] for o in objs}
+    assert types == {"course-of-action", "x-mitre-tactic", "x-mitre-matrix"}
     assert await ctx.get_state("etag") == 'W/"attack-1"'
     assert await ctx.get_state("last_successful_fetch") == fixed.isoformat()
 
@@ -147,6 +149,33 @@ async def test_fetch_http_error_raises() -> None:
     finally:
         await conn.teardown()
         await client.aclose()
+
+
+@pytest.mark.asyncio
+async def test_fetch_emits_x_mitre_types_through_dev_emit_handler() -> None:
+    captured: list[dict[str, Any]] = []
+    state: dict[str, Any] = {}
+
+    async def capture(bundle: dict[str, Any]) -> EmitAckPayload:
+        captured.append(bundle)
+        return EmitAckPayload(accepted=0, duplicates=0, validation_failures=[])
+
+    log = structlog.get_logger("attack-emit-test")
+    transport = InProcessTransport("attack-emit", capture, state, log, meter=None)
+    ctx = ConnectorContext(transport, {"stix_url": _FIXTURE_PATH.as_uri()})
+    dev_emit = DevEmitHandler(allow_custom_types=True)
+
+    conn = AttackConnector(ctx)
+    await conn.setup()
+    await conn.fetch()
+    await conn.teardown()
+
+    assert len(captured) == 1
+    ack = await dev_emit("mitre-attack", captured[0])
+    assert ack.accepted == _EXPECTED_OBJECTS
+    assert not ack.validation_failures
+    x_mitre = [o for o in captured[0]["objects"] if str(o.get("type", "")).startswith("x-mitre-")]
+    assert len(x_mitre) == 2
 
 
 @pytest.mark.asyncio

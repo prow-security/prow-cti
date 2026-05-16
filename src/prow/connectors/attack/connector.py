@@ -245,22 +245,23 @@ class AttackConnector(ConnectorBase):
                 continue
             normalized = _normalize_attack_object(item)
             try:
-                validate_stix_object(normalized)
+                validate_stix_object(normalized, allow_custom_types=True)
             except StixValidationError as exc:
-                stix_type = normalized.get("type")
-                if isinstance(stix_type, str) and stix_type.startswith("x-mitre-"):
-                    skipped_validation += 1
-                    continue
                 object_id = normalized.get("id", "unknown")
-                raise AttackFeedFormatError(
-                    f"object {object_id!r} failed STIX validation: {exc.errors[0]}",
-                ) from exc
+                stix_type = normalized.get("type")
+                self.ctx.log.warning(
+                    "attack.object_validation_skipped",
+                    object_id=object_id,
+                    stix_type=stix_type,
+                    error=exc.errors[0],
+                )
+                skipped_validation += 1
+                continue
             validated.append(normalized)
 
         if skipped_validation:
             self.ctx.log.info(
-                "attack.skipped_unsupported_types",
+                "attack.skipped_validation_failures",
                 count=skipped_validation,
-                reason="x-mitre-* types lack vendored JSON Schema validators",
             )
         return validated, skipped_validation

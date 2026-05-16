@@ -36,6 +36,7 @@ the network.
 from __future__ import annotations
 
 import json
+import re
 from collections.abc import Iterable
 from importlib import resources
 from importlib.resources.abc import Traversable
@@ -71,6 +72,12 @@ _COMMON_OBJECT_TYPES: Final[frozenset[str]] = frozenset(
 # distinct STIX object type. Files under common/ are filtered through
 # _COMMON_OBJECT_TYPES instead.
 _OBJECT_DIRS: Final[frozenset[str]] = frozenset({"sdos", "observables", "sros"})
+
+# Compiled once; STIX IDs are ``<type>--<uuid>`` per the spec.
+_STIX_ID_RE: Final[re.Pattern[str]] = re.compile(
+    r"^[\w.-]+--[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+    re.IGNORECASE,
+)
 
 
 class StixValidationError(ValueError):
@@ -191,17 +198,62 @@ def _collect_errors(
     return [_format_error(e, prefix=prefix) for e in validator.iter_errors(instance)]
 
 
-def _resolve_validator(stix_type: object, source: dict[str, Any]) -> Draft202012Validator:
-    """Look up the compiled validator for ``stix_type`` or raise."""
+def _resolve_validator(
+    stix_type: object,
+    source: dict[str, Any],
+    *,
+    allow_custom_types: bool,
+) -> Draft202012Validator | None:
+    """Look up the compiled validator for ``stix_type`` or raise / return None."""
     if not isinstance(stix_type, str) or not stix_type:
         raise StixValidationError(["object is missing a non-empty 'type' field"], source=source)
     validator = _VALIDATORS.get(stix_type)
     if validator is None:
+        if allow_custom_types:
+            return None
         raise StixValidationError([f"unknown STIX type {stix_type!r}"], source=source)
     return validator
 
 
-def _validate_bundle(obj: dict[str, Any]) -> None:
+def _validate_custom_type_minimal(obj: dict[str, Any]) -> list[str]:
+    """Structural checks for STIX custom object types without vendored schemas."""
+    errors: list[str] = []
+    stix_type = obj.get("type")
+    if not isinstance(stix_type, str) or not stix_type.strip():
+        return ["object is missing a non-empty 'type' field"]
+
+    obj_id = obj.get("id")
+    if not isinstance(obj_id, str) or not obj_id.strip():
+        errors.append("object is missing a non-empty 'id' field")
+    elif not _STIX_ID_RE.match(obj_id):
+        errors.append(f"id {obj_id!r} is not a valid STIX 2.1 identifier")
+    elif not obj_id.startswith(f"{stix_type}--"):
+        errors.append(f"id must begin with {stix_type!r} followed by '--'")
+
+    spec = obj.get("spec_version")
+    if spec is None:
+        errors.append("spec_version must be '2.1'")
+    elif spec != "2.1":
+        errors.append("spec_version must be '2.1'")
+
+    return errors
+
+
+def _validate_custom_type_passthrough(obj: dict[str, Any]) -> None:
+    """Accept a custom STIX type after minimal structural validation."""
+    errors = _validate_custom_type_minimal(obj)
+    if errors:
+        raise StixValidationError(errors, source=obj)
+    stix_type = obj["type"]
+    obj_id = obj["id"]
+    _log.debug(
+        "stix.validator.custom_type_passthrough",
+        stix_type=stix_type,
+        object_id=obj_id,
+    )
+
+
+def _validate_bundle(obj: dict[str, Any], *, allow_custom_types: bool = False) -> None:
     """Validate a STIX bundle: structural checks, then per-item recursion.
 
     The bundle schema's ``$ref``-rich ``items`` clause already enforces
@@ -220,20 +272,22 @@ def _validate_bundle(obj: dict[str, Any]) -> None:
             if not isinstance(item, dict):
                 sub_errors.append(f"objects/{index}: expected object, got {type(item).__name__}")
                 continue
-            item_type = item.get("type")
-            if not isinstance(item_type, str) or item_type not in _VALIDATORS:
-                sub_errors.append(f"objects/{index}: unknown or missing STIX type {item_type!r}")
-                continue
-            sub_errors.extend(
-                _collect_errors(_VALIDATORS[item_type], item, prefix=f"objects/{index}/")
-            )
+            try:
+                validate_stix_object(item, allow_custom_types=allow_custom_types)
+            except StixValidationError as exc:
+                for msg in exc.errors:
+                    sub_errors.append(f"objects/{index}/{msg}")
 
     all_errors = bundle_errors + sub_errors
     if all_errors:
         raise StixValidationError(all_errors, source=obj)
 
 
-def validate_stix_object(obj: dict[str, Any]) -> None:
+def validate_stix_object(
+    obj: dict[str, Any],
+    *,
+    allow_custom_types: bool = False,
+) -> None:
     """Validate a single STIX object against the vendored OASIS schemas.
 
     Args:
@@ -256,16 +310,24 @@ def validate_stix_object(obj: dict[str, Any]) -> None:
 
     stix_type = obj.get("type")
     if stix_type == "bundle":
-        _validate_bundle(obj)
+        _validate_bundle(obj, allow_custom_types=allow_custom_types)
         return
 
-    validator = _resolve_validator(stix_type, obj)
+    validator = _resolve_validator(stix_type, obj, allow_custom_types=allow_custom_types)
+    if validator is None:
+        _validate_custom_type_passthrough(obj)
+        return
+
     errors = _collect_errors(validator, obj)
     if errors:
         raise StixValidationError(errors, source=obj)
 
 
-def validate_many(objects: Iterable[dict[str, Any]]) -> None:
+def validate_many(
+    objects: Iterable[dict[str, Any]],
+    *,
+    allow_custom_types: bool = False,
+) -> None:
     """Validate an iterable of STIX objects, reusing compiled validators.
 
     The first failure short-circuits — STIX ingestion is per-object
@@ -273,4 +335,4 @@ def validate_many(objects: Iterable[dict[str, Any]]) -> None:
     rather than a deferred report at the end of a 10k-item batch.
     """
     for obj in objects:
-        validate_stix_object(obj)
+        validate_stix_object(obj, allow_custom_types=allow_custom_types)

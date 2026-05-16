@@ -38,11 +38,13 @@ async def test_create_db_emit_handler_passes_instance_and_session(
         *,
         source_connector_instance_id: str,
         batch_size: int = 500,
+        allow_custom_types: bool = False,
     ) -> EmitAckPayload:
         captured["session"] = session
         captured["bundle"] = bundle
         captured["source"] = source_connector_instance_id
         captured["batch"] = batch_size
+        captured["allow_custom_types"] = allow_custom_types
         return EmitAckPayload(accepted=2, duplicates=1, validation_failures=[])
 
     @asynccontextmanager
@@ -74,6 +76,7 @@ async def test_create_inprocess_db_emit_handler_fixes_instance(
         *,
         source_connector_instance_id: str,
         batch_size: int = 500,
+        allow_custom_types: bool = False,
     ) -> EmitAckPayload:
         sources.append(source_connector_instance_id)
         return EmitAckPayload(accepted=0, duplicates=0, validation_failures=[])
@@ -103,6 +106,7 @@ async def test_create_db_emit_handler_propagates_validation_failures(
         *,
         source_connector_instance_id: str,
         batch_size: int = 500,
+        allow_custom_types: bool = False,
     ) -> EmitAckPayload:
         return EmitAckPayload(accepted=0, duplicates=0, validation_failures=vf)
 

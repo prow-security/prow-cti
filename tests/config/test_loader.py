@@ -88,6 +88,16 @@ def test_load_config_none_uses_builtin_defaults(
     assert [c.name for c in cfg.connectors] == [c.name for c in expected.connectors]
 
 
+def test_builtin_defaults_abuse_ch_disabled() -> None:
+    cfg = _builtin_defaults()
+    by_name = {c.name: c for c in cfg.connectors}
+    assert by_name["urlhaus"].enabled is False
+    assert by_name["threatfox"].enabled is False
+    assert by_name["malwarebazaar"].enabled is False
+    assert by_name["cisa-kev"].enabled is True
+    assert by_name["mitre-attack"].enabled is True
+
+
 def test_load_config_prow_yml_example(repo_root: Path) -> None:
     example = repo_root / "prow.yml.example"
     cfg = load_config(example)

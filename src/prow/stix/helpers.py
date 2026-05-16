@@ -52,6 +52,7 @@ from prow.stix.types import (
     Indicator,
     Ipv4Addr,
     Ipv6Addr,
+    Malware,
     Relationship,
     Url,
 )
@@ -64,14 +65,63 @@ __all__ = [
     "indicator",
     "ipv4_observable",
     "ipv6_observable",
+    "malware",
+    "malware_id",
     "relationship",
     "url_observable",
 ]
+
+# RFC 4122 URL namespace UUID — stable, well-known constant for prow malware IDs.
+# Same namespace stix2 uses for SCO UUIDv5; we derive a separate key prefix so
+# malware SDO IDs never collide with SCO IDs for the same family name string.
+_PROW_MALWARE_NAMESPACE = uuid.UUID("6ba7b814-9dad-11d1-80b4-00c04fd430c8")
 
 
 def _utc_now() -> datetime:
     """Return ``datetime.now(timezone.utc)``; isolated for testability."""
     return datetime.now(UTC)
+
+
+def malware_id(name: str) -> str:
+    """Deterministic STIX ID for a malware family, stable across runs.
+
+    Two calls with the same name always return the same ID. Uses UUIDv5 over a
+    prow-specific namespace and normalized name key.
+    """
+    normalized = name.strip().lower()
+    uid = uuid.uuid5(_PROW_MALWARE_NAMESPACE, f"prow:malware:{normalized}")
+    return f"malware--{uid}"
+
+
+def malware(
+    name: str,
+    *,
+    is_family: bool = True,
+    description: str | None = None,
+    malware_types: Sequence[str] | None = None,
+    aliases: Sequence[str] | None = None,
+    object_marking_refs: Sequence[str] | None = None,
+    created_by_ref: str | None = None,
+    deterministic_id: bool = True,
+    id: str | None = None,
+) -> Malware:
+    """Build a STIX 2.1 Malware SDO with optional deterministic ID."""
+    now = _utc_now()
+    resolved_id = id
+    if resolved_id is None:
+        resolved_id = malware_id(name) if deterministic_id else _fresh_id("malware")
+    return Malware(
+        id=resolved_id,
+        created=now,
+        modified=now,
+        created_by_ref=created_by_ref,
+        object_marking_refs=list(object_marking_refs) if object_marking_refs else None,
+        is_family=is_family,
+        name=name,
+        description=description,
+        malware_types=list(malware_types) if malware_types else None,
+        aliases=list(aliases) if aliases else None,
+    )
 
 
 def _fresh_id(stix_type: str) -> str:

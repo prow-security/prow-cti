@@ -28,6 +28,7 @@ from prow.connector.context import ConnectorContext
 from prow.connector.protocol.messages import EmitAckPayload
 from prow.connector.transport_inprocess import InProcessTransport
 from prow.connectors.threatfox.connector import ThreatFoxConnector, ThreatFoxFetchError
+from prow.stix.helpers import malware_id
 
 _FIXTURE_PATH = Path(__file__).resolve().parent / "fixtures" / "iocs_sample.json"
 _FIXTURE_BODY = _FIXTURE_PATH.read_bytes()
@@ -136,6 +137,35 @@ async def test_fetch_no_results_sets_state() -> None:
 
     assert captured == []
     assert await ctx.get_state("last_fetch_date") == "2026-05-16"
+
+
+def _malware_objects(bundle: dict[str, Any]) -> list[dict[str, Any]]:
+    return [o for o in bundle["objects"] if o.get("type") == "malware"]
+
+
+@pytest.mark.asyncio
+async def test_fetch_malware_ids_are_deterministic() -> None:
+    captured: list[dict[str, Any]] = []
+    state: dict[str, Any] = {}
+    ctx = _ctx_for_test({}, captured, state)
+    client = httpx.AsyncClient(transport=_make_mock_transport(_FIXTURE_BODY))
+    conn = ThreatFoxConnector(ctx)
+    conn._http_client_override = client
+    try:
+        await conn.setup()
+        await conn.fetch()
+        await conn.fetch()
+    finally:
+        await conn.teardown()
+        await client.aclose()
+
+    assert len(captured) == 2
+    first_ids = {o["id"] for o in _malware_objects(captured[0])}
+    second_ids = {o["id"] for o in _malware_objects(captured[1])}
+    assert first_ids == second_ids
+    assert malware_id("Cobalt Strike") in first_ids
+    assert malware_id("Emotet") in first_ids
+    assert malware_id("AgentTesla") in first_ids
 
 
 @pytest.mark.asyncio

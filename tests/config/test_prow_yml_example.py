@@ -60,3 +60,24 @@ def test_prow_yml_example_schedule_durations(prow_yml_example: Path) -> None:
         assert _ISO_DURATION.match(connector.schedule), (
             f"{connector.name} schedule {connector.schedule!r} is not a valid ISO duration"
         )
+
+
+def test_prow_yml_example_abuse_ch_disabled(prow_yml_example: Path) -> None:
+    cfg = load_config(prow_yml_example)
+    by_name = {c.name: c for c in cfg.connectors}
+    assert by_name["urlhaus"].enabled is False
+    assert by_name["threatfox"].enabled is False
+    assert by_name["malwarebazaar"].enabled is False
+
+
+def test_prow_yml_example_abuse_ch_auth_keys(prow_yml_example: Path) -> None:
+    cfg = load_config(prow_yml_example)
+    by_name = {c.name: c for c in cfg.connectors}
+    for name in ("urlhaus", "threatfox", "malwarebazaar"):
+        assert "auth_key" in by_name[name].config
+
+
+def test_prow_yml_example_mitre_attack_allow_custom_types(prow_yml_example: Path) -> None:
+    cfg = load_config(prow_yml_example)
+    by_name = {c.name: c for c in cfg.connectors}
+    assert by_name["mitre-attack"].allow_custom_types is True

@@ -17,7 +17,6 @@
 from __future__ import annotations
 
 import json
-import uuid
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -34,10 +33,10 @@ from prow.stix.helpers import (
     file_observable,
     indicator,
     ipv4_observable,
+    malware,
     relationship,
     url_observable,
 )
-from prow.stix.types import Malware
 
 _DEFAULT_API_URL = "https://threatfox-api.abuse.ch/api/v1/"
 _DEFAULT_USER_AGENT = "Prow-CTI/0.1 (security research; https://github.com/prow-cti)"
@@ -224,16 +223,9 @@ class ThreatFoxConnector(ConnectorBase):
 
         malware_name = entry.get("malware_printable")
         if isinstance(malware_name, str) and malware_name.strip():
-            now = datetime.now(UTC)
-            malware = Malware(
-                id=f"malware--{uuid.uuid4()}",
-                created=now,
-                modified=now,
-                is_family=True,
-                name=malware_name.strip(),
-            )
-            objects.append(malware)
-            objects.append(relationship(ind, "indicates", malware))
+            family = malware(name=malware_name.strip(), is_family=True)
+            objects.append(family)
+            objects.append(relationship(ind, "indicates", family))
         return objects
 
     def _indicator_pattern(self, ioc_type: str, ioc_value: str) -> str:

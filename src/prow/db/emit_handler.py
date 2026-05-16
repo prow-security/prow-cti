@@ -36,8 +36,12 @@ InProcessEmitHandler = Callable[[dict[str, Any]], Awaitable[EmitAckPayload]]
 
 def create_db_emit_handler(
     session_factory: async_sessionmaker[AsyncSession],
+    *,
+    allow_custom_types_by_instance: dict[str, bool] | None = None,
 ) -> EmitHandler:
     """Return ``(instance_id, bundle) -> EmitAckPayload`` using :func:`ingest_stix_bundle`."""
+
+    custom_types_lookup = allow_custom_types_by_instance or {}
 
     async def emit_handler(instance_id: str, bundle: dict[str, Any]) -> EmitAckPayload:
         async with session_scope(session_factory) as session:
@@ -45,6 +49,7 @@ def create_db_emit_handler(
                 session,
                 bundle,
                 source_connector_instance_id=instance_id,
+                allow_custom_types=custom_types_lookup.get(instance_id, False),
             )
 
     return emit_handler
@@ -54,10 +59,14 @@ def create_inprocess_db_emit_handler(
     session_factory: async_sessionmaker[AsyncSession],
     *,
     connector_instance_id: str,
+    allow_custom_types: bool = False,
 ) -> InProcessEmitHandler:
     """Emit handler with signature expected by in-process transport."""
 
-    inner = create_db_emit_handler(session_factory)
+    inner = create_db_emit_handler(
+        session_factory,
+        allow_custom_types_by_instance={connector_instance_id: allow_custom_types},
+    )
 
     async def emit_bundle(bundle: dict[str, Any]) -> EmitAckPayload:
         return await inner(connector_instance_id, bundle)

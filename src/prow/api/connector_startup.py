@@ -68,7 +68,15 @@ def build_supervisor_and_scheduler(
 ) -> tuple[Supervisor, ConnectorScheduler]:
     """Register enabled connectors from config; return supervisor and scheduler."""
 
-    emit_handler = create_db_emit_handler(session_factory)
+    allow_custom_types_by_instance = {
+        instance_cfg.id: instance_cfg.allow_custom_types
+        for instance_cfg in config.connectors
+        if instance_cfg.id is not None
+    }
+    emit_handler = create_db_emit_handler(
+        session_factory,
+        allow_custom_types_by_instance=allow_custom_types_by_instance,
+    )
     state_get = create_db_state_getter(session_factory)
     state_set = create_db_state_setter(session_factory)
 
