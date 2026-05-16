@@ -94,7 +94,10 @@ def _mount_ui() -> None:
     async def spa_fallback(spa_path: str) -> FileResponse:
         if spa_path:
             static_root = _STATIC_DIR.resolve()
-            candidate = (static_root / spa_path).resolve()
+            requested_path = Path(spa_path)
+            if requested_path.is_absolute() or ".." in requested_path.parts:
+                return FileResponse(static_root / "index.html")
+            candidate = (static_root / requested_path).resolve()
             try:
                 candidate.relative_to(static_root)
             except ValueError:
