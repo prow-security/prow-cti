@@ -26,6 +26,15 @@ from typing import Any, TextIO
 import structlog
 import typer
 
+from prow.cli.connector_ops import (
+    build_list_rows,
+    count_before_purge,
+    format_connector_list_table,
+    instances_for_connector_name,
+    load_cli_config,
+    purge_connector_data,
+    resolve_instance_ids,
+)
 from prow.connector.base import ConnectorBase
 from prow.connector.dev_emit import DevEmitHandler
 from prow.connector.dev_packaging import (
@@ -290,6 +299,175 @@ def test_command(
         err=True,
     )
     raise typer.Exit(code=1)
+
+
+def _connector_package_path(entry_name: str) -> Path | None:
+    ep = resolve_connector_entry_point(entry_name)
+    if ep is None:
+        return None
+    try:
+        loaded = ep.load()
+        module = importlib.import_module(loaded.__module__)
+        if module.__file__ is None:
+            return None
+        return Path(module.__file__).resolve().parent
+    except Exception:
+        return None
+
+
+@app.command("list")
+def list_command() -> None:
+    """List configured connectors, status, and object counts."""
+
+    async def _run() -> None:
+        config = load_cli_config()
+        settings = load_database_settings()
+        engine = create_async_engine_from_settings(settings)
+        if not await check_database(engine):
+            await dispose_engine(engine)
+            typer.echo("Database unreachable; showing config only.", err=True)
+            rows = await build_list_rows(config, create_async_sessionmaker(engine), None)
+            await dispose_engine(engine)
+            typer.echo(format_connector_list_table(rows))
+            return
+        session_factory = create_async_sessionmaker(engine)
+        try:
+            rows = await build_list_rows(config, session_factory, None)
+            typer.echo(format_connector_list_table(rows))
+        finally:
+            await dispose_engine(engine)
+
+    asyncio.run(_run())
+
+
+@app.command("purge")
+def purge_command(
+    name: str = typer.Argument(..., help="Connector entry point name (e.g. cisa-kev)"),
+    yes: bool = typer.Option(False, "--yes", help="Skip confirmation prompt"),
+) -> None:
+    """Delete all STIX data ingested by a connector instance."""
+
+    config = load_cli_config()
+    instance_ids = resolve_instance_ids(config, name)
+    if not instance_ids:
+        typer.echo(f"No connector named {name!r} in configuration.", err=True)
+        raise typer.Exit(code=1)
+
+    async def _run() -> None:
+        settings = load_database_settings()
+        engine = create_async_engine_from_settings(settings)
+        if not await check_database(engine):
+            await dispose_engine(engine)
+            typer.echo("Database unreachable.", err=True)
+            raise typer.Exit(code=1)
+        session_factory = create_async_sessionmaker(engine)
+        try:
+            count = await count_before_purge(session_factory, instance_ids)
+        finally:
+            await dispose_engine(engine)
+
+        typer.echo(
+            f"This will permanently delete all data ingested by {name!r}.\n"
+            f"{count:,} objects will be removed from the database.\n"
+            "This cannot be undone.\n"
+            "Relationships from other connectors that reference these objects "
+            "may become dangling until a future graph-hygiene pass exists.\n",
+        )
+        if not yes:
+            typed = typer.prompt(f"Type {name!r} to confirm")
+            if typed != name:
+                typer.echo("Aborted.", err=True)
+                raise typer.Exit(code=1)
+
+        engine = create_async_engine_from_settings(settings)
+        session_factory = create_async_sessionmaker(engine)
+        try:
+            deleted = await purge_connector_data(session_factory, instance_ids)
+            typer.echo(f"Deleted {deleted:,} objects for instance(s): {', '.join(instance_ids)}.")
+        finally:
+            await dispose_engine(engine)
+
+    asyncio.run(_run())
+
+
+@app.command("run")
+def run_command(
+    name: str = typer.Argument(..., help="Connector entry point name"),
+    once: bool = typer.Option(
+        True,
+        "--once/--repeat",
+        help="Run a single fetch (default). --repeat keeps the dev runtime alive.",
+    ),
+    instance: str | None = typer.Option(
+        None,
+        "--instance",
+        help="Explicit instance id from prow.yml",
+    ),
+    persist: bool = typer.Option(
+        True,
+        "--persist/--no-persist",
+        help="Write emitted STIX to Postgres (default: persist)",
+    ),
+) -> None:
+    """Run one fetch for a configured connector (dev runtime wrapper)."""
+
+    config = load_cli_config()
+    matches = instances_for_connector_name(config, name, instance_id=instance)
+    if not matches:
+        typer.echo(f"No connector named {name!r} in configuration.", err=True)
+        raise typer.Exit(code=1)
+
+    inst_cfg = matches[0]
+    instance_id = inst_cfg.id
+    if instance_id is None:
+        typer.echo(f"Connector {name!r} has no instance id in configuration.", err=True)
+        raise typer.Exit(code=1)
+    package = _connector_package_path(name)
+    if package is None:
+        typer.echo(f"Connector entry point {name!r} is not installed or failed to load.", err=True)
+        raise typer.Exit(code=1)
+
+    config_path: Path | None = None
+    tmp_file: Path | None = None
+    if inst_cfg.config:
+        import tempfile
+
+        tmp = tempfile.NamedTemporaryFile(
+            mode="w",
+            suffix=".json",
+            delete=False,
+            encoding="utf-8",
+        )
+        json.dump(inst_cfg.config, tmp)
+        tmp.close()
+        tmp_file = Path(tmp.name)
+        config_path = tmp_file
+
+    typer.echo(
+        f"Running {name!r} via dev runtime (instance {instance_id!r}). "
+        "v0.3 will trigger the in-process supervisor instead.\n",
+        err=True,
+    )
+
+    async def _runner() -> None:
+        try:
+            await _async_dev(
+                package,
+                config_path,
+                instance_id,
+                no_watch=once,
+                persist=persist,
+                stdout=sys.stdout,
+                stderr=sys.stderr,
+            )
+        finally:
+            if tmp_file is not None:
+                tmp_file.unlink(missing_ok=True)
+
+    try:
+        asyncio.run(_runner())
+    except KeyboardInterrupt:
+        typer.echo("\n[run] shutdown", err=True)
 
 
 @app.command("validate")

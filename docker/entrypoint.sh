@@ -30,9 +30,8 @@ echo "Running migrations..."
 alembic upgrade head
 echo "Migrations complete."
 
-# 3. First-boot KEV ingestion (if no objects exist)
-if [ "${PROW_SKIP_KEV_IMPORT:-false}" != "true" ]; then
-    OBJECT_COUNT=$(python -c "
+# 3. First-boot KEV ingestion when DB is empty and cisa-kev is enabled in config
+OBJECT_COUNT=$(python -c "
 import asyncio, asyncpg, os
 
 def dsn():
@@ -48,16 +47,29 @@ async def count():
 asyncio.run(count())
 " 2>/dev/null || echo "0")
 
-    if [ "$OBJECT_COUNT" = "0" ]; then
+if [ "$OBJECT_COUNT" = "0" ]; then
+    KEV_ENABLED=$(python -c "
+from prow.config import load_config
+cfg = load_config()
+enabled = any(
+    c.name == 'cisa-kev' and c.enabled
+    for c in cfg.connectors
+)
+print('true' if enabled else 'false')
+" 2>/dev/null || echo "true")
+
+    if [ "$KEV_ENABLED" = "true" ]; then
         echo "First boot — ingesting CISA KEV..."
         prow connector dev --no-watch --persist \
             src/prow/connectors/kev || true
         echo "KEV ingestion complete."
     else
-        echo "Data exists ($OBJECT_COUNT objects) — skipping initial ingest."
+        echo "Empty database — cisa-kev disabled in config, skipping initial ingest."
     fi
+else
+    echo "Data exists ($OBJECT_COUNT objects) — skipping initial ingest."
 fi
 
-# 4. Start the API server
+# 4. Start the API server (supervisor + scheduler start in app lifespan)
 echo "Starting Prow CTI on port 8000..."
 exec python -m prow

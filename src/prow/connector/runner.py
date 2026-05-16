@@ -30,6 +30,7 @@ from jsonschema import ValidationError as JsonSchemaValidationError
 from prow.connector.base import ConnectorBase
 from prow.connector.entry_point_resolve import (
     load_manifest_config_schema,
+    load_manifest_document_for_entry_point,
     resolve_connector_entry_point,
 )
 from prow.connector.pipe_stdio import connector_subprocess_exit, open_connector_stdio_streams
@@ -147,8 +148,16 @@ async def _async_main() -> None:
     connector_cls = _load_connector_class(ep_named)
     connector = connector_cls(ctx)
 
+    manifest = load_manifest_document_for_entry_point(ep_named)
+    connector_type = manifest.get("type")
+
     try:
         await connector.setup()
+        fetch_method = getattr(connector, "fetch", None)
+        if connector_type == "external_import" and callable(fetch_method):
+            await fetch_method()
+            await connector.teardown()
+            connector_subprocess_exit(0)
         await ctx.cancelled.wait()
         await connector.teardown()
     except asyncio.CancelledError:

@@ -24,7 +24,6 @@ services:
       - "8000:8000"
     environment:
       PROW_DATABASE_URL: postgresql+asyncpg://prow:prow@postgres:5432/prow
-      PROW_SKIP_KEV_IMPORT: ${PROW_SKIP_KEV_IMPORT:-false}
     depends_on:
       postgres:
         condition: service_healthy
