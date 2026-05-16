@@ -16,6 +16,7 @@
 
 from __future__ import annotations
 
+import os
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -93,16 +94,12 @@ def _mount_ui() -> None:
     @app.get("/{spa_path:path}", include_in_schema=False)
     async def spa_fallback(spa_path: str) -> FileResponse:
         if spa_path:
-            static_root = _STATIC_DIR.resolve()
-            requested_path = Path(spa_path)
-            if requested_path.is_absolute() or ".." in requested_path.parts:
-                return FileResponse(static_root / "index.html")
-            candidate = (static_root / requested_path).resolve()
-            try:
-                candidate.relative_to(static_root)
-            except ValueError:
-                return FileResponse(static_root / "index.html")
-            if candidate.is_file():
+            static_root = os.path.realpath(_STATIC_DIR)
+            requested = os.path.normpath("/" + spa_path).lstrip("/")
+            candidate = os.path.realpath(os.path.join(static_root, requested))
+            if os.path.commonpath([static_root, candidate]) != static_root:
+                return FileResponse(_STATIC_DIR / "index.html")
+            if os.path.isfile(candidate):
                 return FileResponse(candidate)
         return FileResponse(_STATIC_DIR / "index.html")
 
