@@ -1,0 +1,168 @@
+{
+  "type": "bundle",
+  "id": "bundle--6a1237ca-4d75-413b-90d1-afacde81fed0",
+  "objects": [
+    {
+      "modified": "2024-10-17T18:54:36.723Z",
+      "name": "Network Intrusion Prevention",
+      "description": "Use intrusion detection signatures to block traffic at network boundaries.",
+      "x_mitre_deprecated": false,
+      "x_mitre_domains": [
+        "enterprise-attack"
+      ],
+      "x_mitre_version": "1.0",
+      "type": "course-of-action",
+      "id": "course-of-action--12241367-a8b7-49b4-b86e-2236901ba50c",
+      "created": "2019-06-10T20:46:02.263Z",
+      "created_by_ref": "identity--c78cb6e5-0c4b-4611-8297-d1b8b55e40b5",
+      "revoked": false,
+      "external_references": [
+        {
+          "source_name": "mitre-attack",
+          "url": "https://attack.mitre.org/mitigations/M1031",
+          "external_id": "M1031"
+        }
+      ],
+      "object_marking_refs": [
+        "marking-definition--fa42a846-8d90-4e51-bc29-71d5b4802168"
+      ],
+      "x_mitre_attack_spec_version": "3.2.0",
+      "x_mitre_modified_by_ref": "identity--c78cb6e5-0c4b-4611-8297-d1b8b55e40b5"
+    },
+    {
+      "modified": "2024-12-24T14:41:01.585Z",
+      "name": "Vulnerability Scanning",
+      "description": "Vulnerability scanning involves the automated or manual assessment of systems, applications, and networks to identify misconfigurations, unpatched software, or other security weaknesses. The process helps prioritize remediation efforts by classifying vulnerabilities based on risk and impact, reducing the likelihood of exploitation by adversaries. This mitigation can be implemented through the following measures: \n\nProactive Identification of Vulnerabilities\n\n- Implementation: Use tools like Nessus or OpenVAS to scan endpoints, servers, and applications for missing patches and configuration issues. Schedule regular scans to ensure timely identification of vulnerabilities introduced by new deployments or updates.\n- Use Case: A scan identifies unpatched software, such as outdated Apache servers, which could be exploited via CVE-XXXX-XXXX. The server is promptly patched, mitigating the risk.\n\nCloud Environment Scanning\n\n- Implementation: Use cloud-specific vulnerability management tools like AWS Inspector, Azure Security Center, or GCP Security Command Center to identify issues like open S3 buckets or overly permissive IAM roles.\n- Use Case: The scan detects a misconfigured S3 bucket with public read access, which is remediated to prevent potential data leakage.\n\nNetwork Device Scanning\n\n- Implementation: Use tools to scan network devices for vulnerabilities, such as weak SNMP strings or outdated firmware. Correlate scan results with vendor advisories to prioritize updates.\n- Use Case: Scanning detects a router running outdated firmware vulnerable to CVE-XXXX-YYYY. The firmware is updated to a secure version.\n\nWeb Application Scanning\n\n- Implementation: Use dynamic application security testing (DAST) tools such as OWASP ZAP or Burp Suite to scan for common vulnerabilities like SQL injection or cross-site scripting (XSS). Perform regular scans post-deployment to identify newly introduced vulnerabilities.\n- Use Case: A scan identifies a cross-site scripting vulnerability in a form input field, which is promptly remediated by developers.\n\nPrioritizing Vulnerabilities\n\n- Implementation: Use vulnerability scoring frameworks like CVSS to assess severity.\nIntegrate vulnerability scanning tools with ticketing systems to assign remediation tasks based on criticality.\n- Use Case: A critical vulnerability with a CVSS score of 9.8 affecting remote access servers is prioritized and patched first.\n\n*Tools for Implementation*\n\nOpen Source Tools:\n\n- OpenVAS: Comprehensive network and system vulnerability scanning.\n- OWASP ZAP: Dynamic scanning of web applications for vulnerabilities.\n- Nmap with NSE Scripts: Network scanning with scripts to detect vulnerabilities.",
+      "x_mitre_deprecated": false,
+      "x_mitre_domains": [
+        "enterprise-attack"
+      ],
+      "x_mitre_version": "1.2",
+      "type": "course-of-action",
+      "id": "course-of-action--15437c6d-b998-4a36-be41-4ace3d54d266",
+      "created": "2019-06-06T16:47:30.700Z",
+      "created_by_ref": "identity--c78cb6e5-0c4b-4611-8297-d1b8b55e40b5",
+      "revoked": false,
+      "external_references": [
+        {
+          "source_name": "mitre-attack",
+          "url": "https://attack.mitre.org/mitigations/M1016",
+          "external_id": "M1016"
+        }
+      ],
+      "object_marking_refs": [
+        "marking-definition--fa42a846-8d90-4e51-bc29-71d5b4802168"
+      ],
+      "x_mitre_attack_spec_version": "3.2.0",
+      "x_mitre_modified_by_ref": "identity--c78cb6e5-0c4b-4611-8297-d1b8b55e40b5"
+    },
+    {
+      "modified": "2024-12-18T15:50:51.212Z",
+      "name": "Limit Access to Resource Over Network",
+      "description": "Restrict access to network resources, such as file shares, remote systems, and services, to only those users, accounts, or systems with a legitimate business requirement. This can include employing technologies like network concentrators, RDP gateways, and zero-trust network access (ZTNA) models, alongside hardening services and protocols. This mitigation can be implemented through the following measures:\n\nAudit and Restrict Access:\n\n- Regularly audit permissions for file shares, network services, and remote access tools.\n- Remove unnecessary access and enforce least privilege principles for users and services.\n- Use Active Directory and IAM tools to restrict access based on roles and attributes.\n\nDeploy Secure Remote Access Solutions:\n\n- Use RDP gateways, VPN concentrators, and ZTNA solutions to aggregate and secure remote access connections.\n- Configure access controls to restrict connections based on time, device, and user identity.\n- Enforce MFA for all remote access mechanisms.\n\nDisable Unnecessary Services:\n\n- Identify running services using tools like netstat (Windows/Linux) or Nmap.\n- Disable unused services, such as Telnet, FTP, and legacy SMB, to reduce the attack surface.\n- Use firewall rules to block traffic on unused ports and protocols.\n\nNetwork Segmentation and Isolation:\n\n- Use VLANs, firewalls, or micro-segmentation to isolate critical network resources from general access.\n- Restrict communication between subnets to prevent lateral movement.\n\nMonitor and Log Access:\n\n- Monitor access attempts to file shares, RDP, and remote network resources using SIEM tools.\n- Enable auditing and logging for successful and failed attempts to access restricted resources.\n\n*Tools for Implementation*\n\nFile Share Management:\n\n- Microsoft Active Directory Group Policies\n- Samba (Linux/Unix file share management)\n- AccessEnum (Windows access auditing tool)\n\nSecure Remote Access:\n\n- Microsoft Remote Desktop Gateway\n- Apache Guacamole (open-source RDP/VNC gateway)\n- Zero Trust solutions: Tailscale, Cloudflare Zero Trust\n\nService and Protocol Hardening:\n\n- Nmap or Nessus for network service discovery\n- Windows Group Policy Editor for disabling SMBv1, Telnet, and legacy protocols\n- iptables or firewalld (Linux) for blocking unnecessary traffic\n\nNetwork Segmentation:\n\n- pfSense for open-source network isolation",
+      "x_mitre_deprecated": false,
+      "x_mitre_domains": [
+        "enterprise-attack"
+      ],
+      "x_mitre_version": "1.1",
+      "type": "course-of-action",
+      "id": "course-of-action--1dcaeb21-9348-42ea-950a-f842aaf1ae1f",
+      "created": "2019-06-11T16:30:16.672Z",
+      "created_by_ref": "identity--c78cb6e5-0c4b-4611-8297-d1b8b55e40b5",
+      "revoked": false,
+      "external_references": [
+        {
+          "source_name": "mitre-attack",
+          "url": "https://attack.mitre.org/mitigations/M1035",
+          "external_id": "M1035"
+        }
+      ],
+      "object_marking_refs": [
+        "marking-definition--fa42a846-8d90-4e51-bc29-71d5b4802168"
+      ],
+      "x_mitre_attack_spec_version": "3.2.0",
+      "x_mitre_modified_by_ref": "identity--c78cb6e5-0c4b-4611-8297-d1b8b55e40b5"
+    },
+    {
+      "modified": "2024-12-18T19:03:10.800Z",
+      "name": "Remote Data Storage",
+      "description": "Remote Data Storage focuses on moving critical data, such as security logs and sensitive files, to secure, off-host locations to minimize unauthorized access, tampering, or destruction by adversaries. By leveraging remote storage solutions, organizations enhance the protection of forensic evidence, sensitive information, and monitoring data. This mitigation can be implemented through the following measures:\n\nCentralized Log Management:\n\n- Configure endpoints to forward security logs to a centralized log collector or SIEM.\n- Use tools like Splunk Graylog, or Security Onion to aggregate and store logs.\n- Example command (Linux): `sudo auditd | tee /var/log/audit/audit.log | nc <remote-log-server> 514`\n\nRemote File Storage Solutions:\n\n- Utilize cloud storage solutions like AWS S3, Google Cloud Storage, or Azure Blob Storage for sensitive data.\n- Ensure proper encryption at rest and access control policies (IAM roles, ACLs).\n\nIntrusion Detection Log Forwarding:\n\n- Forward logs from IDS/IPS systems (e.g., Zeek/Suricata) to a remote security information system.\n- Example for Suricata log forwarding:\n`outputs:\n  - type: syslog\n    protocol: tls\n    address: <remote-syslog-server>`\n\nImmutable Backup Configurations:\n\n- Enable immutable storage settings for backups to prevent adversaries from modifying or deleting data.\n- Example: AWS S3 Object Lock.\n\nData Encryption:\n\n- Ensure encryption for sensitive data using AES-256 at rest and TLS 1.2+ for data in transit.\nTools: OpenSSL, BitLocker, LUKS for Linux.",
+      "x_mitre_deprecated": false,
+      "x_mitre_domains": [
+        "enterprise-attack"
+      ],
+      "x_mitre_version": "1.1",
+      "type": "course-of-action",
+      "id": "course-of-action--20a2baeb-98c2-4901-bad7-dc62d0a03dea",
+      "created": "2019-06-06T21:21:13.027Z",
+      "created_by_ref": "identity--c78cb6e5-0c4b-4611-8297-d1b8b55e40b5",
+      "revoked": false,
+      "external_references": [
+        {
+          "source_name": "mitre-attack",
+          "url": "https://attack.mitre.org/mitigations/M1029",
+          "external_id": "M1029"
+        }
+      ],
+      "object_marking_refs": [
+        "marking-definition--fa42a846-8d90-4e51-bc29-71d5b4802168"
+      ],
+      "x_mitre_attack_spec_version": "3.2.0",
+      "x_mitre_modified_by_ref": "identity--c78cb6e5-0c4b-4611-8297-d1b8b55e40b5"
+    },
+    {
+      "type": "course-of-action",
+      "id": "course-of-action--20f6a9df-37c4-4e20-9e47-025983b1b39d",
+      "created": "2019-06-11T16:33:55.337Z",
+      "created_by_ref": "identity--c78cb6e5-0c4b-4611-8297-d1b8b55e40b5",
+      "revoked": false,
+      "external_references": [
+        {
+          "source_name": "mitre-attack",
+          "url": "https://attack.mitre.org/mitigations/M1037",
+          "external_id": "M1037"
+        }
+      ],
+      "object_marking_refs": [
+        "marking-definition--fa42a846-8d90-4e51-bc29-71d5b4802168"
+      ],
+      "modified": "2026-05-12T15:12:00.730Z",
+      "name": "Filter Network Traffic",
+      "description": "Employ network appliances and endpoint software to filter ingress, egress, and lateral network traffic. This includes protocol-based filtering, enforcing firewall rules, and blocking or restricting traffic based on predefined conditions to limit adversary movement and data exfiltration. This mitigation can be implemented through the following measures:\n\nIngress Traffic Filtering:\n\n- Use Case: Configure network firewalls to allow traffic only from authorized IP addresses to public-facing servers.\n- Implementation: Limit SSH (port 22) and RDP (port 3389) traffic to specific IP ranges.\n\nEgress Traffic Filtering:\n\n- Use Case: Use firewalls or endpoint security software to block unauthorized outbound traffic to prevent data exfiltration and command-and-control (C2) communications.\n- Implementation: Block outbound traffic to known malicious IPs or regions where communication is unexpected.\n\nProtocol-Based Filtering:\n\n- Use Case: Restrict the use of specific protocols that are commonly abused by adversaries, such as SMB, RPC, or Telnet, based on business needs.\n- Implementation: Disable SMBv1 on endpoints to prevent exploits like EternalBlue.\n\nNetwork Segmentation:\n\n- Use Case: Create network segments for critical systems and restrict communication between segments unless explicitly authorized.\n- Implementation: Implement VLANs to isolate IoT devices or guest networks from core business systems.\n\nApplication Layer Filtering:\n\n- Use Case: Use proxy servers or Web Application Firewalls (WAFs) to inspect and block malicious HTTP/S traffic.\n- Implementation: Configure a WAF to block SQL injection attempts or other web application exploitation techniques.",
+      "x_mitre_modified_by_ref": "identity--c78cb6e5-0c4b-4611-8297-d1b8b55e40b5",
+      "x_mitre_deprecated": false,
+      "x_mitre_domains": [
+        "enterprise-attack"
+      ],
+      "x_mitre_version": "1.2",
+      "x_mitre_attack_spec_version": "3.3.0"
+    },
+    {
+      "modified": "2024-12-24T13:40:41.043Z",
+      "name": "Restrict Web-Based Content",
+      "description": "Restricting web-based content involves enforcing policies and technologies that limit access to potentially malicious websites, unsafe downloads, and unauthorized browser behaviors. This can include URL filtering, download restrictions, script blocking, and extension control to protect against exploitation, phishing, and malware delivery. This mitigation can be implemented through the following measures:\n\nDeploy Web Proxy Filtering:\n\n- Use solutions to filter web traffic based on categories, reputation, and content types.\n- Enforce policies that block unsafe websites or file types at the gateway level.\n\nEnable DNS-Based Filtering:\n\n- Implement tools to restrict access to domains associated with malware or phishing campaigns.\n- Use public DNS filtering services to enhance protection.\n\nEnforce Content Security Policies (CSP):\n\n- Configure CSP headers on internal and external web applications to restrict script execution, iframe embedding, and cross-origin requests.\n\nControl Browser Features:\n\n- Disable unapproved browser features like automatic downloads, developer tools, or unsafe scripting.\n- Enforce policies through tools like Group Policy Management to control browser settings.\n\nMonitor and Alert on Web-Based Threats:\n\n- Use SIEM tools to collect and analyze web proxy logs for signs of anomalous or malicious activity.\n- Configure alerts for access attempts to blocked domains or repeated file download failures.",
+      "x_mitre_deprecated": false,
+      "x_mitre_domains": [
+        "enterprise-attack"
+      ],
+      "x_mitre_version": "1.1",
+      "type": "course-of-action",
+      "id": "course-of-action--21da4fd4-27ad-4e9c-b93d-0b9b14d02c96",
+      "created": "2019-06-06T20:52:59.206Z",
+      "created_by_ref": "identity--c78cb6e5-0c4b-4611-8297-d1b8b55e40b5",
+      "revoked": false,
+      "external_references": [
+        {
+          "source_name": "mitre-attack",
+          "url": "https://attack.mitre.org/mitigations/M1021",
+          "external_id": "M1021"
+        }
+      ],
+      "object_marking_refs": [
+        "marking-definition--fa42a846-8d90-4e51-bc29-71d5b4802168"
+      ],
+      "x_mitre_attack_spec_version": "3.2.0",
+      "x_mitre_modified_by_ref": "identity--c78cb6e5-0c4b-4611-8297-d1b8b55e40b5"
+    }
+  ]
+}

@@ -24,7 +24,12 @@ def test_bootstrap_skips_missing_entry_points() -> None:
     config = _builtin_defaults()
     session_factory = MagicMock()
     supervisor, scheduler = build_supervisor_and_scheduler(config, session_factory, "0.0.0")
-    # Only cisa-kev module exists; four others are skipped
     registered = {inst.entry_point_name for inst in supervisor.list_instances()}
-    assert registered == {"cisa-kev"}
-    assert len(scheduler._schedules) == 1
+    assert registered == {
+        "cisa-kev",
+        "mitre-attack",
+        "urlhaus",
+        "threatfox",
+        "malwarebazaar",
+    }
+    assert len(scheduler._schedules) == 5

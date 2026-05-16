@@ -1,0 +1,54 @@
+{
+  "query_status": "ok",
+  "data": [
+    {
+      "id": "1",
+      "ioc": "192.168.1.1:443",
+      "ioc_type": "ip:port",
+      "malware": "Cobalt Strike",
+      "malware_printable": "Cobalt Strike",
+      "confidence_level": 75,
+      "first_seen": "2024-03-15 10:23:00 UTC",
+      "tags": ["cobalt_strike", "c2"],
+      "reference": "https://threatfox.abuse.ch/ioc/1/"
+    },
+    {
+      "id": "2",
+      "ioc": "evil-c2.example.com",
+      "ioc_type": "domain",
+      "malware_printable": "Emotet",
+      "confidence_level": 80,
+      "first_seen": "2024-03-14 12:00:00 UTC",
+      "tags": ["emotet"],
+      "reference": "https://threatfox.abuse.ch/ioc/2/"
+    },
+    {
+      "id": "3",
+      "ioc": "https://drop.example/malware.bin",
+      "ioc_type": "url",
+      "confidence_level": 70,
+      "first_seen": "2024-03-13 09:15:00 UTC",
+      "tags": ["dropper"],
+      "reference": "https://threatfox.abuse.ch/ioc/3/"
+    },
+    {
+      "id": "4",
+      "ioc": "d41d8cd98f00b204e9800998ecf8427e90121366400b93278cf4b8f7509796e",
+      "ioc_type": "sha256_hash",
+      "malware_printable": "AgentTesla",
+      "confidence_level": 90,
+      "first_seen": "2024-03-12 18:30:00 UTC",
+      "tags": ["agenttesla"],
+      "reference": "https://threatfox.abuse.ch/ioc/4/"
+    },
+    {
+      "id": "5",
+      "ioc": "098f6bcd4621d373cade4e832627b4f6",
+      "ioc_type": "md5_hash",
+      "confidence_level": 65,
+      "first_seen": "2024-03-11 07:45:00 UTC",
+      "tags": ["test"],
+      "reference": "https://threatfox.abuse.ch/ioc/5/"
+    }
+  ]
+}
