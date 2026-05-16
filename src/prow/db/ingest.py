@@ -39,6 +39,8 @@ def stix_validation_error_to_failures(err: StixValidationError) -> list[Validati
 
 def validate_and_partition_bundle(
     bundle: dict[str, Any],
+    *,
+    allow_custom_types: bool = False,
 ) -> tuple[list[dict[str, Any]], list[ValidationFailure]]:
     """Validate bundle envelope and each object; return ``(valid_objects, failures)``."""
 
@@ -83,7 +85,7 @@ def validate_and_partition_bundle(
             )
             continue
         try:
-            validate_stix_object(item)
+            validate_stix_object(item, allow_custom_types=allow_custom_types)
         except StixValidationError as err:
             object_id = item.get("id")
             oid = object_id if isinstance(object_id, str) and object_id else bundle_id
@@ -100,6 +102,7 @@ async def ingest_stix_bundle(
     *,
     source_connector_instance_id: str,
     batch_size: int = DEFAULT_INSERT_BATCH_SIZE,
+    allow_custom_types: bool = False,
 ) -> EmitAckPayload:
     """Validate ``bundle`` outside any DB transaction, then persist valid objects once.
 
@@ -107,7 +110,10 @@ async def ingest_stix_bundle(
     :meth:`sqlalchemy.ext.asyncio.AsyncSession.begin` for the insert phase.
     """
 
-    valid_objects, validation_failures = validate_and_partition_bundle(bundle)
+    valid_objects, validation_failures = validate_and_partition_bundle(
+        bundle,
+        allow_custom_types=allow_custom_types,
+    )
     if not valid_objects:
         return EmitAckPayload(accepted=0, duplicates=0, validation_failures=validation_failures)
 

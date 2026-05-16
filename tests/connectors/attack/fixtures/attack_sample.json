@@ -163,6 +163,25 @@
       ],
       "x_mitre_attack_spec_version": "3.2.0",
       "x_mitre_modified_by_ref": "identity--c78cb6e5-0c4b-4611-8297-d1b8b55e40b5"
+    },
+    {
+      "type": "x-mitre-tactic",
+      "id": "x-mitre-tactic--8e496ffb-9bcf-43e6-8272-ecb390143907",
+      "spec_version": "2.1",
+      "name": "Reconnaissance",
+      "created": "2019-06-10T20:46:02.263Z",
+      "modified": "2019-06-10T20:46:02.263Z",
+      "x_mitre_shortname": "reconnaissance",
+      "x_mitre_deprecated": false
+    },
+    {
+      "type": "x-mitre-matrix",
+      "id": "x-mitre-matrix--95de75ae-1e37-480d-9443-d25fb40ab986",
+      "spec_version": "2.1",
+      "name": "Enterprise ATT&CK",
+      "created": "2019-06-10T20:46:02.263Z",
+      "modified": "2019-06-10T20:46:02.263Z",
+      "x_mitre_deprecated": false
     }
   ]
 }

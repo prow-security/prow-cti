@@ -16,41 +16,46 @@ connectors:
       http_timeout_seconds: 30
 
   # MITRE ATT&CK Enterprise
-  # Full STIX 2.1 dataset: techniques, groups, software, mitigations.
+  # Full STIX 2.1 dataset: techniques, groups, software, mitigations, x-mitre-* types.
   - name: mitre-attack
     id: mitre-attack
     enabled: true
     schedule: "24h"
+    allow_custom_types: true
     config:
       stix_url: "https://raw.githubusercontent.com/mitre/cti/master/enterprise-attack/enterprise-attack.json"
       include_deprecated: false
 
   # abuse.ch URLhaus
-  # Malicious URL submissions. High volume — ~1000 new entries/day.
+  # Requires a free API key from https://urlhaus.abuse.ch/api/
+  # Sign up at https://auth.abuse.ch/ and set auth_key below.
   - name: urlhaus
     id: urlhaus
-    enabled: true
+    enabled: false          # set to true after adding your API key
     schedule: "1h"
     config:
       limit: 1000
+      auth_key: ""          # required — get yours at urlhaus.abuse.ch/api/
 
   # abuse.ch ThreatFox
-  # IOCs with malware family attribution.
+  # Requires a free API key from https://threatfox.abuse.ch/api/
   - name: threatfox
     id: threatfox
-    enabled: true
+    enabled: false          # set to true after adding your API key
     schedule: "1h"
     config:
-      days_back: 7         # on first run, fetch last N days of data
+      days_back: 7
+      auth_key: ""          # required — get yours at threatfox.abuse.ch
 
   # abuse.ch MalwareBazaar
-  # Malware sample metadata and tags.
+  # Requires a free API key from https://bazaar.abuse.ch/api/
   - name: malwarebazaar
     id: malwarebazaar
-    enabled: true
+    enabled: false          # set to true after adding your API key
     schedule: "6h"
     config:
       limit: 100
+      auth_key: ""          # required — get yours at bazaar.abuse.ch
 
 database:
   # Override with PROW_DATABASE_URL environment variable.

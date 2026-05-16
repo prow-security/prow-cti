@@ -167,7 +167,11 @@ async def _async_dev(
             )
             raise typer.Exit(code=1)
         session_factory = create_async_sessionmaker(engine)
-        emit = create_db_emit_handler(session_factory)
+        allow_custom_types = entry_name == "mitre-attack"
+        emit = create_db_emit_handler(
+            session_factory,
+            allow_custom_types_by_instance={instance_id: allow_custom_types},
+        )
         state_get = create_db_state_getter(
             session_factory,
             connector_instance_id=instance_id,
@@ -182,7 +186,8 @@ async def _async_dev(
             file=stderr,
         )
     else:
-        emit = DevEmitHandler(stream=stdout)
+        allow_custom_types = entry_name == "mitre-attack"
+        emit = DevEmitHandler(stream=stdout, allow_custom_types=allow_custom_types)
 
     runtime = prepare_dev_runtime(
         connector_path,

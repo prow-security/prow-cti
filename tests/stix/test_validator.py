@@ -72,6 +72,26 @@ def test_unknown_type_fails_with_clear_error() -> None:
     assert any("unknown STIX type" in line for line in excinfo.value.errors)
 
 
+def test_unknown_type_passes_with_allow_custom_types() -> None:
+    obj = {
+        "type": "x-mitre-tactic",
+        "id": "x-mitre-tactic--8e496ffb-9bcf-43e6-8272-ecb390143907",
+        "spec_version": "2.1",
+    }
+    validate_stix_object(obj, allow_custom_types=True)
+
+
+def test_unknown_type_malformed_id_fails_with_allow_custom_types() -> None:
+    obj = {
+        "type": "x-mitre-tactic",
+        "id": "not-a-valid-stix-id",
+        "spec_version": "2.1",
+    }
+    with pytest.raises(StixValidationError) as excinfo:
+        validate_stix_object(obj, allow_custom_types=True)
+    assert any("id" in line for line in excinfo.value.errors)
+
+
 def test_bundle_with_invalid_member_fails_with_indexed_path() -> None:
     good = _load_indicator()
     bad = copy.deepcopy(good)

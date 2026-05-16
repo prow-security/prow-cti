@@ -31,8 +31,14 @@ class DevEmitHandler:
     Prints a short summary to *stream* (stdout by default). Does not persist.
     """
 
-    def __init__(self, stream: TextIO | None = None) -> None:
+    def __init__(
+        self,
+        stream: TextIO | None = None,
+        *,
+        allow_custom_types: bool = False,
+    ) -> None:
         self._stream = stream or sys.stdout
+        self._allow_custom_types = allow_custom_types
 
     async def __call__(self, _instance_id: str, bundle: dict[str, Any]) -> EmitAckPayload:
         bundle_id = bundle.get("id")
@@ -70,7 +76,7 @@ class DevEmitHandler:
             oid_raw = obj.get("id")
             oid = str(oid_raw) if oid_raw is not None else "?"
             try:
-                validate_stix_object(obj)
+                validate_stix_object(obj, allow_custom_types=self._allow_custom_types)
             except StixValidationError as exc:
                 failures.append(ValidationFailure(object_id=oid, error="; ".join(exc.errors)))
                 continue

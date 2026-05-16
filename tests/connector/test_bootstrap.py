@@ -28,8 +28,5 @@ def test_bootstrap_skips_missing_entry_points() -> None:
     assert registered == {
         "cisa-kev",
         "mitre-attack",
-        "urlhaus",
-        "threatfox",
-        "malwarebazaar",
     }
-    assert len(scheduler._schedules) == 5
+    assert len(scheduler._schedules) == 2

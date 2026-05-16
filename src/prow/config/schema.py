@@ -28,6 +28,7 @@ class ConnectorInstanceConfig(BaseModel):
     id: str | None = None
     enabled: bool = True
     schedule: str = "24h"
+    allow_custom_types: bool = False
     config: dict[str, Any] = {}
 
     model_config = ConfigDict(extra="forbid")

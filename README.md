@@ -44,6 +44,11 @@ To disable KEV, copy `prow.yml.example` to `prow.yml` and set
 `enabled: false` on the `cisa-kev` entry, or mount that file into the
 container. Then open http://localhost:8000.
 
+The abuse.ch connectors (URLhaus, ThreatFox, MalwareBazaar) require free
+API keys from [abuse.ch auth](https://auth.abuse.ch/). They are disabled
+by default in `prow.yml.example`; set `auth_key` in each connector's
+`config` and `enabled: true` after signing up.
+
 For production deployments, set `POSTGRES_PASSWORD` (and other
 secrets) from a secrets manager — the default `prow` password in
 `docker-compose.yml` is for local development only.

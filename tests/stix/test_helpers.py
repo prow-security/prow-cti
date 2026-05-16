@@ -28,6 +28,7 @@ from prow.stix import (
     Indicator,
     Ipv4Addr,
     Ipv6Addr,
+    Malware,
     Relationship,
     Url,
     bundle,
@@ -37,6 +38,8 @@ from prow.stix import (
     indicator,
     ipv4_observable,
     ipv6_observable,
+    malware,
+    malware_id,
     relationship,
     url_observable,
     validate_stix_object,
@@ -189,6 +192,33 @@ def test_file_observable_with_extensions_produces_distinct_id() -> None:
         "File SCO IDs must differ when extensions differ — "
         "extensions are spec-required contributing properties."
     )
+
+
+def test_malware_id_normalizes_name() -> None:
+    assert malware_id("Cobalt Strike") == malware_id("cobalt strike")
+    assert malware_id("Cobalt Strike") == malware_id("  Cobalt Strike  ")
+
+
+def test_malware_id_differs_by_family() -> None:
+    assert malware_id("Cobalt Strike") != malware_id("Emotet")
+
+
+def test_malware_id_is_stable() -> None:
+    first = malware_id("Cobalt Strike")
+    second = malware_id("Cobalt Strike")
+    assert first == second
+
+
+def test_malware_helper_uses_deterministic_id() -> None:
+    obj = malware("Cobalt Strike")
+    assert isinstance(obj, Malware)
+    assert obj.id == malware_id("cobalt strike")
+
+
+def test_malware_helper_non_deterministic_id() -> None:
+    a = malware("Cobalt Strike", deterministic_id=False)
+    b = malware("Cobalt Strike", deterministic_id=False)
+    assert a.id != b.id
 
 
 def test_file_observable_extensions_round_trip() -> None:

@@ -81,4 +81,4 @@ def test_cli_dev_attack_fixture_file_url() -> None:
     assert r.returncode == 0, r.stderr + r.stdout
     out = r.stdout + r.stderr
     assert "emit:" in out
-    assert "6 objects" in out
+    assert "8 objects" in out

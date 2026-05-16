@@ -41,6 +41,8 @@ from prow.stix.helpers import (
     indicator,
     ipv4_observable,
     ipv6_observable,
+    malware,
+    malware_id,
     relationship,
     url_observable,
 )
@@ -125,6 +127,8 @@ __all__ = [
     "ipv4_observable",
     "ipv6_observable",
     "label_to_tlp_id",
+    "malware",
+    "malware_id",
     "relationship",
     "tlp_id_to_label",
     "url_observable",

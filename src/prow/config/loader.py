@@ -35,10 +35,16 @@ _ENV_OVERRIDES: dict[str, tuple[str, type]] = {
 
 BUILTIN_CONNECTOR_DEFAULTS: list[dict[str, Any]] = [
     {"name": "cisa-kev", "id": "cisa-kev", "schedule": "6h", "enabled": True},
-    {"name": "mitre-attack", "id": "mitre-attack", "schedule": "24h", "enabled": True},
-    {"name": "urlhaus", "id": "urlhaus", "schedule": "1h", "enabled": True},
-    {"name": "threatfox", "id": "threatfox", "schedule": "1h", "enabled": True},
-    {"name": "malwarebazaar", "id": "malwarebazaar", "schedule": "6h", "enabled": True},
+    {
+        "name": "mitre-attack",
+        "id": "mitre-attack",
+        "schedule": "24h",
+        "enabled": True,
+        "allow_custom_types": True,
+    },
+    {"name": "urlhaus", "id": "urlhaus", "schedule": "1h", "enabled": False},
+    {"name": "threatfox", "id": "threatfox", "schedule": "1h", "enabled": False},
+    {"name": "malwarebazaar", "id": "malwarebazaar", "schedule": "6h", "enabled": False},
 ]
 
 _CONFIG_CANDIDATES = (Path("prow.yml"), Path("/etc/prow/prow.yml"))
@@ -118,7 +124,7 @@ def _set_nested(data: dict[str, Any], keys: list[str], value: Any) -> None:
 
 
 def _builtin_defaults() -> ProwConfig:
-    """Zero-config defaults: all built-in connectors enabled."""
+    """Zero-config defaults: credential-free built-ins enabled; abuse.ch off."""
 
     connectors = [ConnectorInstanceConfig(**entry) for entry in BUILTIN_CONNECTOR_DEFAULTS]
     return ProwConfig(connectors=connectors)
