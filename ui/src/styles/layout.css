@@ -1,0 +1,57 @@
+/* Browse layout (Indicators / Vulnerabilities) */
+
+.browse-page {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+
+.browse-page__head {
+  margin-bottom: var(--space-4);
+}
+
+.browse-page__title {
+  margin: 0;
+  font-size: var(--text-xl);
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+
+.browse-page__search {
+  margin-bottom: var(--space-4);
+}
+
+.browse-split {
+  flex: 1;
+  display: flex;
+  flex-direction: row;
+  min-height: 0;
+  min-width: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  overflow: hidden;
+}
+
+.browse-split__table {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: auto;
+}
+
+.browse-split--detail .browse-split__table {
+  flex: 0 0 58%;
+}
+
+.browse-split__detail {
+  flex: 0 0 42%;
+  min-width: 0;
+  border-left: 1px solid var(--border);
+  background: var(--surface);
+  overflow: auto;
+  padding: var(--space-5);
+}

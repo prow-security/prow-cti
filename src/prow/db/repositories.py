@@ -17,11 +17,11 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime, timedelta
 from typing import Any, Protocol, runtime_checkable
 
 import sqlalchemy as sa
-from sqlalchemy import select
+from sqlalchemy import Date, func, or_, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -52,9 +52,28 @@ def _row_dict(
     }
 
 
+def _stix_row_to_public_dict(row: StixObjectRow) -> dict[str, Any]:
+    """Merge persisted columns into ``raw`` for API / bundle consumers."""
+    out = dict(row.raw)
+    out["id"] = row.id
+    out["type"] = row.type
+    out["spec_version"] = row.spec_version
+    out["created"] = row.created
+    if row.modified is not None:
+        out["modified"] = row.modified
+    out["revoked"] = row.revoked
+    if row.created_by_ref is not None:
+        out["created_by_ref"] = row.created_by_ref
+    if row.confidence is not None:
+        out["confidence"] = row.confidence
+    out["source_connector_instance_id"] = row.source_connector_instance_id
+    out["ingested_at"] = row.ingested_at.isoformat()
+    return out
+
+
 @runtime_checkable
 class StixObjectRepository(Protocol):
-    """Write-side contract for STIX object persistence."""
+    """STIX object persistence and read APIs used by the HTTP surface."""
 
     async def bulk_insert_dedupe(
         self,
@@ -66,25 +85,40 @@ class StixObjectRepository(Protocol):
         """Insert objects with ON CONFLICT DO NOTHING; return ``(accepted, duplicates)``."""
 
     async def list_objects(
-        self, *, stix_type: str | None = None, limit: int = 100, offset: int = 0
+        self,
+        *,
+        stix_type: str | None,
+        limit: int,
+        offset: int,
+        sort: str,
     ) -> tuple[list[dict[str, Any]], int]: ...
 
     async def get_object(self, stix_id: str) -> dict[str, Any] | None: ...
 
     async def search_by_observable(
-        self, query: str, *, stix_type: str | None = None, limit: int = 50
+        self,
+        q: str,
+        *,
+        stix_type: str | None,
+        limit: int,
     ) -> tuple[list[dict[str, Any]], int]: ...
 
     async def full_text_search(
-        self, query: str, *, stix_type: str | None = None, limit: int = 50
+        self,
+        q: str,
+        *,
+        stix_type: str | None,
+        limit: int,
     ) -> tuple[list[dict[str, Any]], int]: ...
 
     async def get_ingest_stats(self) -> dict[str, Any]: ...
 
+    async def get_ingest_timeseries(self, *, days: int) -> dict[str, Any]: ...
+
 
 @runtime_checkable
 class RelationshipRepository(Protocol):
-    """Read-side contract for STIX relationships."""
+    """Read relationships stored as STIX SRO rows in ``stix_objects``."""
 
     async def get_relationships(self, stix_id: str) -> list[dict[str, Any]]: ...
 
@@ -142,101 +176,6 @@ class SqlAlchemyStixObjectRepository:
 
         return versioned_accepted + sco_accepted, versioned_duplicates + sco_duplicates
 
-    async def list_objects(
-        self, *, stix_type: str | None = None, limit: int = 100, offset: int = 0
-    ) -> tuple[list[dict[str, Any]], int]:
-        stmt = select(StixObjectRow.raw)
-        count_stmt = select(sa.func.count()).select_from(StixObjectRow)
-        if stix_type:
-            stmt = stmt.where(StixObjectRow.type == stix_type)
-            count_stmt = count_stmt.where(StixObjectRow.type == stix_type)
-
-        stmt = stmt.order_by(StixObjectRow.created.desc()).limit(limit).offset(offset)
-
-        total = await self._session.scalar(count_stmt) or 0
-        result = await self._session.scalars(stmt)
-        return list(result.all()), total
-
-    async def get_object(self, stix_id: str) -> dict[str, Any] | None:
-        stmt = (
-            select(StixObjectRow.raw)
-            .where(StixObjectRow.id == stix_id)
-            .order_by(StixObjectRow.modified.desc().nulls_last())
-            .limit(1)
-        )
-        return await self._session.scalar(stmt)
-
-    async def search_by_observable(
-        self, query: str, *, stix_type: str | None = None, limit: int = 50
-    ) -> tuple[list[dict[str, Any]], int]:
-        stmt = select(StixObjectRow.raw).where(
-            sa.or_(
-                StixObjectRow.raw.op("->>")("value") == query,
-                StixObjectRow.raw.op("->>")("pattern").like(f"%{query}%"),
-            )
-        )
-        count_stmt = (
-            select(sa.func.count())
-            .select_from(StixObjectRow)
-            .where(
-                sa.or_(
-                    StixObjectRow.raw.op("->>")("value") == query,
-                    StixObjectRow.raw.op("->>")("pattern").like(f"%{query}%"),
-                )
-            )
-        )
-        if stix_type:
-            stmt = stmt.where(StixObjectRow.type == stix_type)
-            count_stmt = count_stmt.where(StixObjectRow.type == stix_type)
-
-        stmt = stmt.limit(limit)
-
-        total = await self._session.scalar(count_stmt) or 0
-        result = await self._session.scalars(stmt)
-        return list(result.all()), total
-
-    async def full_text_search(
-        self, query: str, *, stix_type: str | None = None, limit: int = 50
-    ) -> tuple[list[dict[str, Any]], int]:
-        stmt = select(StixObjectRow.raw).where(
-            sa.or_(
-                StixObjectRow.raw.op("->>")("name").ilike(f"%{query}%"),
-                StixObjectRow.raw.op("->>")("description").ilike(f"%{query}%"),
-            )
-        )
-        count_stmt = (
-            select(sa.func.count())
-            .select_from(StixObjectRow)
-            .where(
-                sa.or_(
-                    StixObjectRow.raw.op("->>")("name").ilike(f"%{query}%"),
-                    StixObjectRow.raw.op("->>")("description").ilike(f"%{query}%"),
-                )
-            )
-        )
-        if stix_type:
-            stmt = stmt.where(StixObjectRow.type == stix_type)
-            count_stmt = count_stmt.where(StixObjectRow.type == stix_type)
-
-        stmt = stmt.limit(limit)
-
-        total = await self._session.scalar(count_stmt) or 0
-        result = await self._session.scalars(stmt)
-        return list(result.all()), total
-
-    async def get_ingest_stats(self) -> dict[str, Any]:
-        total_stmt = select(sa.func.count()).select_from(StixObjectRow)
-        total = await self._session.scalar(total_stmt) or 0
-
-        type_stmt = select(StixObjectRow.type, sa.func.count()).group_by(StixObjectRow.type)
-        type_result = await self._session.execute(type_stmt)
-        by_type = {row[0]: row[1] for row in type_result.all()}
-
-        last_stmt = select(sa.func.max(StixObjectRow.ingested_at))
-        last_ingested = await self._session.scalar(last_stmt)
-
-        return {"total_objects": total, "by_type": by_type, "last_ingested_at": last_ingested}
-
     async def _insert_batches(
         self,
         rows: list[dict[str, Any]],
@@ -258,23 +197,182 @@ class SqlAlchemyStixObjectRepository:
             inserted_total += len(result.fetchall())
         return inserted_total
 
+    async def list_objects(
+        self,
+        *,
+        stix_type: str | None,
+        limit: int,
+        offset: int,
+        sort: str = "ingested_at_desc",
+    ) -> tuple[list[dict[str, Any]], int]:
+        count_stmt = select(func.count()).select_from(StixObjectRow)
+        stmt = select(StixObjectRow).limit(limit).offset(offset)
+        order: tuple[Any, ...]
+        if sort == "confidence_desc":
+            order = (
+                StixObjectRow.confidence.desc().nulls_last(),
+                StixObjectRow.ingested_at.desc(),
+            )
+        elif sort == "created_desc":
+            order = (StixObjectRow.created.desc(),)
+        else:
+            order = (StixObjectRow.ingested_at.desc(),)
+        stmt = stmt.order_by(*order)
+        if stix_type is not None:
+            count_stmt = count_stmt.where(StixObjectRow.type == stix_type)
+            stmt = stmt.where(StixObjectRow.type == stix_type)
+
+        total = int(await self._session.scalar(count_stmt) or 0)
+        rows = (await self._session.scalars(stmt)).all()
+        return [_stix_row_to_public_dict(r) for r in rows], total
+
+    async def get_object(self, stix_id: str) -> dict[str, Any] | None:
+        stmt = (
+            select(StixObjectRow)
+            .where(StixObjectRow.id == stix_id)
+            .order_by(
+                StixObjectRow.modified.desc().nulls_last(),
+                StixObjectRow.row_id.desc(),
+            )
+            .limit(1)
+        )
+        row = await self._session.scalar(stmt)
+        if row is None:
+            return None
+        return _stix_row_to_public_dict(row)
+
+    async def search_by_observable(
+        self,
+        q: str,
+        *,
+        stix_type: str | None,
+        limit: int,
+    ) -> tuple[list[dict[str, Any]], int]:
+        clauses: list[Any] = []
+        if stix_type is None or stix_type == "indicator":
+            clauses.append(
+                sa.and_(
+                    StixObjectRow.type == "indicator",
+                    StixObjectRow.raw["pattern"].as_string().ilike(f"%{q}%"),
+                )
+            )
+        if stix_type is None or stix_type == "vulnerability":
+            clauses.append(
+                sa.and_(
+                    StixObjectRow.type == "vulnerability",
+                    StixObjectRow.raw["name"].as_string().ilike(f"%{q}%"),
+                )
+            )
+        if stix_type is None or stix_type == "ipv4-addr":
+            clauses.append(
+                sa.and_(
+                    StixObjectRow.type == "ipv4-addr",
+                    StixObjectRow.raw["value"].as_string() == q,
+                )
+            )
+        if not clauses:
+            return [], 0
+
+        stmt = (
+            select(StixObjectRow)
+            .where(or_(*clauses))
+            .order_by(StixObjectRow.ingested_at.desc())
+            .limit(limit)
+        )
+        rows = (await self._session.scalars(stmt)).all()
+        return [_stix_row_to_public_dict(r) for r in rows], len(rows)
+
+    async def full_text_search(
+        self,
+        q: str,
+        *,
+        stix_type: str | None,
+        limit: int,
+    ) -> tuple[list[dict[str, Any]], int]:
+        blob = sa.cast(StixObjectRow.raw, sa.Text)
+        stmt = (
+            select(StixObjectRow)
+            .where(blob.ilike(f"%{q}%"))
+            .order_by(StixObjectRow.ingested_at.desc())
+            .limit(limit)
+        )
+        if stix_type is not None:
+            stmt = stmt.where(StixObjectRow.type == stix_type)
+        rows = (await self._session.scalars(stmt)).all()
+        return [_stix_row_to_public_dict(r) for r in rows], len(rows)
+
+    async def get_ingest_stats(self) -> dict[str, Any]:
+        type_stmt = select(StixObjectRow.type, func.count()).group_by(StixObjectRow.type)
+        result = await self._session.execute(type_stmt)
+        by_type: dict[str, int] = {t: int(c) for t, c in result.all()}
+        total_objects = sum(by_type.values())
+        last_ingested_at = await self._session.scalar(select(func.max(StixObjectRow.ingested_at)))
+        return {
+            "total_objects": total_objects,
+            "by_type": by_type,
+            "last_ingested_at": last_ingested_at,
+        }
+
+    async def get_ingest_timeseries(self, *, days: int) -> dict[str, Any]:
+        if days < 1:
+            msg = "days must be >= 1"
+            raise ValueError(msg)
+        end_date = datetime.now(UTC).date()
+        start_date = end_date - timedelta(days=days - 1)
+        start_dt = datetime.combine(start_date, datetime.min.time(), tzinfo=UTC)
+
+        day_bucket = sa.cast(sa.func.timezone("UTC", StixObjectRow.ingested_at), Date)
+        stmt = (
+            select(day_bucket, StixObjectRow.type, func.count())
+            .where(StixObjectRow.ingested_at >= start_dt)
+            .where(StixObjectRow.type.in_(("indicator", "vulnerability")))
+            .group_by(day_bucket, StixObjectRow.type)
+        )
+        result = await self._session.execute(stmt)
+        counts: dict[tuple[date, str], int] = {}
+        for bucket, stix_type, cnt in result.all():
+            if isinstance(bucket, datetime):
+                d = bucket.date()
+            elif isinstance(bucket, date):
+                d = bucket
+            else:
+                d = date.fromisoformat(str(bucket))
+            counts[(d, str(stix_type))] = int(cnt)
+
+        series: list[dict[str, Any]] = []
+        cur = start_date
+        while cur <= end_date:
+            series.append(
+                {
+                    "date": cur.isoformat(),
+                    "indicator": counts.get((cur, "indicator"), 0),
+                    "vulnerability": counts.get((cur, "vulnerability"), 0),
+                },
+            )
+            cur += timedelta(days=1)
+
+        return {"days": days, "series": series}
+
 
 class SqlAlchemyRelationshipRepository:
-    """Postgres-backed :class:`RelationshipRepository`."""
+    """Load relationship SDOs from ``stix_objects``."""
 
     def __init__(self, session: AsyncSession) -> None:
         self._session = session
 
     async def get_relationships(self, stix_id: str) -> list[dict[str, Any]]:
-        stmt = select(StixObjectRow.raw).where(
-            StixObjectRow.type == "relationship",
-            sa.or_(
-                StixObjectRow.raw.op("->>")("source_ref") == stix_id,
-                StixObjectRow.raw.op("->>")("target_ref") == stix_id,
-            ),
+        src = StixObjectRow.raw["source_ref"].as_string()
+        tgt = StixObjectRow.raw["target_ref"].as_string()
+        stmt = (
+            select(StixObjectRow)
+            .where(
+                StixObjectRow.type == "relationship",
+                or_(src == stix_id, tgt == stix_id),
+            )
+            .order_by(StixObjectRow.ingested_at.desc())
         )
-        result = await self._session.scalars(stmt)
-        return list(result.all())
+        rows = (await self._session.scalars(stmt)).all()
+        return [_stix_row_to_public_dict(r) for r in rows]
 
 
 class SqlAlchemyConnectorStateRepository:
