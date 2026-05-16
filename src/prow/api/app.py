@@ -19,6 +19,7 @@ from __future__ import annotations
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from pathlib import Path
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
@@ -72,39 +73,14 @@ app.include_router(connectors.router)
 app.include_router(ingest.router)
 
 _STATIC_DIR = Path(__file__).resolve().parent / "static"
-
-
-def _resolve_static_file(spa_path: str) -> Path | None:
-    """Resolve a user-supplied SPA path to a safe file under the static root."""
-    if not spa_path:
-        return None
-
-    # Normalize separators and force a relative path form.
-    normalized_path = spa_path.replace("\\", "/").lstrip("/")
-    requested_path = Path(normalized_path)
-    if (
-        not normalized_path
-        or requested_path == Path(".")
-        or requested_path.is_absolute()
-        or ".." in requested_path.parts
-    ):
-        return None
-
-    static_root = _STATIC_DIR.resolve()
-    candidate = (static_root / requested_path).resolve()
-    try:
-        candidate.relative_to(static_root)
-    except ValueError:
-        return None
-
-    if not candidate.is_file():
-        return None
-    return candidate
+_INDEX_HTML = _STATIC_DIR / "index.html"
 
 
 def _mount_ui() -> None:
+    """Serve the built dashboard; hashed bundles live under /assets."""
     if not _STATIC_DIR.is_dir():
         return
+
     assets_dir = _STATIC_DIR / "assets"
     if assets_dir.is_dir():
         app.mount("/assets", StaticFiles(directory=assets_dir), name="ui-assets")
@@ -116,12 +92,13 @@ def _mount_ui() -> None:
         async def favicon_route() -> FileResponse:
             return FileResponse(favicon)
 
+    if not _INDEX_HTML.is_file():
+        return
+
     @app.get("/{spa_path:path}", include_in_schema=False)
-    async def spa_fallback(spa_path: str) -> FileResponse:
-        candidate = _resolve_static_file(spa_path)
-        if candidate is not None:
-            return FileResponse(candidate)
-        return FileResponse(_STATIC_DIR / "index.html")
+    async def spa_fallback(_spa_path: str) -> FileResponse:
+        # Vite emits assets under /assets; all other client routes use index.html.
+        return FileResponse(_INDEX_HTML)
 
 
 _mount_ui()
