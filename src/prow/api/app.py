@@ -19,7 +19,6 @@ from __future__ import annotations
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from pathlib import Path
-from pathlib import Path, PurePosixPath
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
@@ -94,12 +93,7 @@ def _resolve_static_file(spa_path: str) -> Path | None:
 
 def _mount_ui() -> None:
     if not _STATIC_DIR.is_dir():
-            parsed = PurePosixPath(spa_path)
-            if parsed.is_absolute() or ".." in parsed.parts or "" in parsed.parts:
-                return FileResponse(_STATIC_DIR / "index.html")
-
         return
-            candidate = (static_root / parsed.as_posix()).resolve()
     assets_dir = _STATIC_DIR / "assets"
     if assets_dir.is_dir():
         app.mount("/assets", StaticFiles(directory=assets_dir), name="ui-assets")
