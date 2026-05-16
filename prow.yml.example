@@ -1,0 +1,66 @@
+# Prow CTI — configuration file
+# Copy to prow.yml and edit. Environment variables override top-level
+# settings (see docs/design/connector-config.md for the full list).
+#
+# ${VAR} substitution is NOT supported in v0.2 — values are literal strings.
+
+connectors:
+  # CISA Known Exploited Vulnerabilities
+  # Free, no auth. Runs every 6 hours by default.
+  - name: cisa-kev
+    id: cisa-kev           # stable instance ID — do not change after first ingest
+    enabled: true
+    schedule: "6h"
+    config:
+      feed_url: "https://www.cisa.gov/sites/default/files/feeds/known_exploited_vulnerabilities.json"
+      http_timeout_seconds: 30
+
+  # MITRE ATT&CK Enterprise
+  # Full STIX 2.1 dataset: techniques, groups, software, mitigations.
+  - name: mitre-attack
+    id: mitre-attack
+    enabled: true
+    schedule: "24h"
+    config:
+      stix_url: "https://raw.githubusercontent.com/mitre/cti/master/enterprise-attack/enterprise-attack.json"
+      include_deprecated: false
+
+  # abuse.ch URLhaus
+  # Malicious URL submissions. High volume — ~1000 new entries/day.
+  - name: urlhaus
+    id: urlhaus
+    enabled: true
+    schedule: "1h"
+    config:
+      limit: 1000
+
+  # abuse.ch ThreatFox
+  # IOCs with malware family attribution.
+  - name: threatfox
+    id: threatfox
+    enabled: true
+    schedule: "1h"
+    config:
+      days_back: 7         # on first run, fetch last N days of data
+
+  # abuse.ch MalwareBazaar
+  # Malware sample metadata and tags.
+  - name: malwarebazaar
+    id: malwarebazaar
+    enabled: true
+    schedule: "6h"
+    config:
+      limit: 100
+
+database:
+  # Override with PROW_DATABASE_URL environment variable.
+  url: "postgresql+asyncpg://prow:prow@localhost:5432/prow"
+  pool_size: 10
+
+api:
+  host: "0.0.0.0"
+  port: 8000
+  cors_origins: ["*"]
+
+log:
+  level: "info"            # debug | info | warning | error

@@ -26,6 +26,7 @@ dependencies = [
     "jsonschema>=4.26.0",
     "opentelemetry-api>=1.41.1",
     "opentelemetry-sdk>=1.41.1",
+    "pyyaml>=6.0.2",
 ]
 
 [project.optional-dependencies]
@@ -37,6 +38,7 @@ dev = [
     "pytest-cov>=7.1.0",
     "import-linter>=2.11",
     "types-jsonschema>=4.26.0.20260508",
+    "types-PyYAML>=6.0.12.20250915",
 ]
 opensearch = []
 nats = []
@@ -56,6 +58,10 @@ metric_emitter_test = "prow.connector.testing.metric_emitter_pkg.connector:Metri
 stderr_chatty_test = "prow.connector.testing.stderr_chatty_pkg.connector:StderrChattyConnector"
 secret_logger_test = "prow.connector.testing.secret_logger_pkg.connector:SecretLoggerConnector"
 "cisa-kev" = "prow.connectors.kev:KevConnector"
+"mitre-attack" = "prow.connectors.attack:AttackConnector"
+"urlhaus" = "prow.connectors.urlhaus:UrlhausConnector"
+"threatfox" = "prow.connectors.threatfox:ThreatFoxConnector"
+"malwarebazaar" = "prow.connectors.malwarebazaar:MalwareBazaarConnector"
 
 [tool.hatch.build.targets.sdist]
 include = ["src/prow", "README.md", "LICENSE", "NOTICE", "alembic.ini"]
