@@ -79,8 +79,12 @@ def _resolve_static_file(spa_path: str) -> Path | None:
     if not spa_path:
         return None
 
+    requested_path = Path(spa_path)
+    if requested_path.is_absolute() or ".." in requested_path.parts:
+        return None
+
     static_root = _STATIC_DIR.resolve()
-    candidate = (static_root / spa_path).resolve()
+    candidate = (static_root / requested_path).resolve()
     try:
         candidate.relative_to(static_root)
     except ValueError:
