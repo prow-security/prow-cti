@@ -65,3 +65,14 @@ class HealthResponse(BaseModel):
     status: str
     version: str
     detail: str | None = None
+
+
+class IngestTimeseriesDay(BaseModel):
+    date: str
+    indicator: int
+    vulnerability: int
+
+
+class IngestTimeseriesResponse(BaseModel):
+    days: int
+    series: list[IngestTimeseriesDay]

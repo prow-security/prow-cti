@@ -16,10 +16,12 @@
 
 import typer
 
+from prow.cli.api import app as api_app
 from prow.cli.connector import app as connector_app
 
 app = typer.Typer(invoke_without_command=True)
 
+app.add_typer(api_app, name="api", help="HTTP API server")
 app.add_typer(connector_app, name="connector", help="Connector tooling")
 
 

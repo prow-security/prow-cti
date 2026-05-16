@@ -25,6 +25,8 @@ htmlcov/
 # Editors / OS
 .idea/
 .vscode/
+.cursor/
+.import_linter_cache/
 *.swp
 .DS_Store
 Thumbs.db
@@ -37,3 +39,8 @@ Thumbs.db
 # (Do not add literal %SystemDrive% or ProgramData\ lines here — they are not valid
 # gitignore syntax for pathspec/hatchling and break `pip install -e .` in CI.)
 *.ver0x*.db
+
+# Frontend (Vite) build artifacts
+ui/node_modules/
+ui/dist/
+src/prow/api/static/
